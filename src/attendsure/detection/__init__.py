@@ -1,0 +1,41 @@
+"""Anomaly detection modules for AttendSure."""
+
+from attendsure.detection.rules import (
+    DEFAULT_BASELINE_WINDOW,
+    DEFAULT_DROP_THRESHOLD_PCT,
+    DEFAULT_REPEATED_THRESHOLD,
+    DEFAULT_WEBCAM_ABS_THRESHOLD,
+    DEFAULT_WEBCAM_REL_THRESHOLD_PCT,
+    PERFECT_ATTENDANCE_REPEATED_THRESHOLD,
+    RULE_ATTENDANCE_DROP,
+    RULE_ATTENDANCE_DROP_TITLE,
+    RULE_REPEATED_HEADCOUNT,
+    RULE_REPEATED_HEADCOUNT_TITLE,
+    RULE_WEBCAM_DISCREPANCY,
+    RULE_WEBCAM_DISCREPANCY_TITLE,
+    detect_anomalies,
+    detect_attendance_drop,
+    detect_repeated_headcount,
+    detect_webcam_discrepancy,
+    generate_alert_id,
+)
+
+__all__ = [
+    "DEFAULT_BASELINE_WINDOW",
+    "DEFAULT_DROP_THRESHOLD_PCT",
+    "DEFAULT_REPEATED_THRESHOLD",
+    "DEFAULT_WEBCAM_ABS_THRESHOLD",
+    "DEFAULT_WEBCAM_REL_THRESHOLD_PCT",
+    "PERFECT_ATTENDANCE_REPEATED_THRESHOLD",
+    "RULE_ATTENDANCE_DROP",
+    "RULE_ATTENDANCE_DROP_TITLE",
+    "RULE_REPEATED_HEADCOUNT",
+    "RULE_REPEATED_HEADCOUNT_TITLE",
+    "RULE_WEBCAM_DISCREPANCY",
+    "RULE_WEBCAM_DISCREPANCY_TITLE",
+    "detect_anomalies",
+    "detect_attendance_drop",
+    "detect_repeated_headcount",
+    "detect_webcam_discrepancy",
+    "generate_alert_id",
+]
