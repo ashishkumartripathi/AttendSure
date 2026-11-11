@@ -29,7 +29,7 @@ from attendsure.ui.auth import (
     render_login_screen,
     render_user_badge_sidebar,
 )
-from attendsure.ui.state import get_configured_db_path, test_db_connection
+from attendsure.ui.state import get_configured_db_path, get_active_database_metadata, test_db_connection
 from attendsure.ui.styles import apply_theme
 from attendsure.ui.views.intelligence import render_intelligence
 from attendsure.ui.views.laboratory import render_laboratory
@@ -132,17 +132,23 @@ def main() -> None:
         key="main_nav_radio",
     )
 
+    db_meta = get_active_database_metadata()
+    backend_display = db_meta["backend"]
+    storage_line = (
+        f"• {backend_display} ({db_meta['region']})<br>• Persistent Managed Relational Database<br>• No Biometrics Collected or Stored"
+        if db_meta.get("is_cloud")
+        else "• Offline School Operation<br>• Local SQLite Storage<br>• No Biometrics Collected or Stored"
+    )
+
     st.sidebar.markdown(
-        """
+        f"""
         <div style="margin-top: 2rem; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
                 <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #0D9488;"></span>
-                <span style="font-size: 0.80rem; font-weight: 700; color: #0F172A;">System Online & Ready</span>
+                <span style="font-size: 0.80rem; font-weight: 700; color: #0F172A;">{db_meta['status']}</span>
             </div>
             <div style="font-size: 0.74rem; color: #475569; line-height: 1.45;">
-                • Offline School Operation<br>
-                • Local SQLite Storage<br>
-                • No Biometrics Collected or Stored
+                {storage_line}
             </div>
         </div>
         """,

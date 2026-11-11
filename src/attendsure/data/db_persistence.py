@@ -29,6 +29,16 @@ def is_production_environment() -> bool:
     """Return True if running in production mode, blocking destructive operations."""
     env = os.environ.get("ATTENDSURE_ENVIRONMENT", "").strip().lower()
     is_prod = os.environ.get("ATTENDSURE_IS_PRODUCTION", "").strip().lower()
+    if not env or not is_prod:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                if not env:
+                    env = str(st.secrets.get("ATTENDSURE_ENVIRONMENT", "")).strip().lower()
+                if not is_prod:
+                    is_prod = str(st.secrets.get("ATTENDSURE_IS_PRODUCTION", "")).strip().lower()
+        except Exception:
+            pass
     return env in ("production", "prod") or is_prod in ("1", "true", "yes")
 
 

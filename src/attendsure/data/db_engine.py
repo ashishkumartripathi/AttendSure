@@ -12,9 +12,12 @@ Features:
 
 from dataclasses import asdict
 from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+import sqlite3
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+import uuid
 
 import pandas as pd
 import sqlalchemy as sa
@@ -23,8 +26,13 @@ from sqlalchemy import (
     UniqueConstraint, CheckConstraint, Index
 )
 
-from attendsure.data.models import Alert, SessionRecord
-from attendsure.data.storage import DEFAULT_DB_PATH, AttendanceRepository
+from attendsure.data.models import (
+    Alert, AlertPriority, RecordSource, ReviewStatus, SessionRecord, WebcamStatus
+)
+from attendsure.data.storage import (
+    DEFAULT_DB_PATH, AttendanceRepository, SESSION_COLUMNS, ALERT_COLUMNS, VALID_REVIEW_STATUSES
+)
+from attendsure.data.validation import validate_session_dict, validate_session_dataframe
 
 # Canonical metadata and schema definitions
 metadata = MetaData()
@@ -108,13 +116,15 @@ idx_alerts_rule_id = Index("idx_alerts_rule_id", alerts_table.c.rule_id)
 idx_reviews_alert_id = Index("idx_reviews_alert_id", alert_reviews_table.c.alert_id)
 
 
-def get_database_url() -> str:
+def get_database_url(fallback_to_sqlite: bool = True) -> Optional[str]:
     """Retrieve the active database connection URL.
 
     Checks:
     1. ATTENDSURE_DATABASE_URL environment variable (e.g. postgresql://user:pass@host/db)
     2. DATABASE_URL standard cloud environment variable
-    3. Falls back to local SQLite path (ATTENDSURE_DB_PATH or DEFAULT_DB_PATH)
+    3. Streamlit Cloud Secrets (st.secrets)
+    4. Local .env.local file if present
+    5. Falls back to local SQLite path if fallback_to_sqlite is True
     """
     raw_url = os.environ.get("ATTENDSURE_DATABASE_URL") or os.environ.get("DATABASE_URL")
     if not raw_url:
@@ -124,12 +134,28 @@ def get_database_url() -> str:
                 raw_url = st.secrets.get("ATTENDSURE_DATABASE_URL") or st.secrets.get("DATABASE_URL")
         except Exception:
             pass
+    if not raw_url:
+        try:
+            from dotenv import dotenv_values
+            for p in [Path(".env.local"), Path(__file__).resolve().parents[3] / ".env.local"]:
+                if p.is_file():
+                    vals = dotenv_values(p)
+                    cand = vals.get("ATTENDSURE_DATABASE_URL") or vals.get("DATABASE_URL")
+                    if cand and str(cand).strip():
+                        raw_url = str(cand).strip()
+                        break
+        except Exception:
+            pass
+
     if raw_url and str(raw_url).strip():
         url = str(raw_url).strip()
         # Normalise legacy postgres:// prefix to postgresql:// for SQLAlchemy compatibility
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
         return url
+
+    if not fallback_to_sqlite:
+        return None
 
     # Fallback to SQLite URL
     db_path = os.environ.get("ATTENDSURE_DB_PATH")
@@ -140,6 +166,23 @@ def get_database_url() -> str:
 
     # Form standard sqlite:/// URL
     return f"sqlite:///{p.as_posix()}"
+
+
+def is_production_mode() -> bool:
+    """Return True if running in production mode."""
+    env = os.environ.get("ATTENDSURE_ENVIRONMENT", "").strip().lower()
+    is_prod = os.environ.get("ATTENDSURE_IS_PRODUCTION", "").strip().lower()
+    if not env or not is_prod:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                if not env:
+                    env = str(st.secrets.get("ATTENDSURE_ENVIRONMENT", "")).strip().lower()
+                if not is_prod:
+                    is_prod = str(st.secrets.get("ATTENDSURE_IS_PRODUCTION", "")).strip().lower()
+        except Exception:
+            pass
+    return env in ("production", "prod") or is_prod in ("1", "true", "yes")
 
 
 def is_postgres_url(url: str) -> bool:
@@ -272,4 +315,421 @@ def migrate_sqlite_to_target(
         "source_reviews": len(review_rows),
         "integrity_verified": (t_sessions >= len(sessions)) and (t_alerts >= len(alerts)),
     }
+
+
+# -----------------------------------------------------------------------------
+# Enterprise Relational Repository (PostgreSQL / Neon & SQLAlchemy Core)
+# -----------------------------------------------------------------------------
+
+class RelationalRepository:
+    """Enterprise relational repository implementing the AttendanceRepository interface.
+
+    Backed by SQLAlchemy Core with pooled connections and ACID transaction guarantees.
+    Supports PostgreSQL (e.g., Neon Cloud) and other relational backends.
+    """
+
+    def __init__(self, engine_or_url: Optional[Union[str, sa.Engine]] = None) -> None:
+        """Initialize relational repository with connection engine."""
+        if engine_or_url is None:
+            self._engine: sa.Engine = create_db_engine()
+        elif isinstance(engine_or_url, str):
+            self._engine = create_db_engine(engine_or_url)
+        else:
+            self._engine = engine_or_url
+
+        self._is_closed: bool = False
+        init_relational_schema(self._engine)
+
+    @property
+    def db_path(self) -> str:
+        """Return target database connection representation."""
+        url_str = str(self._engine.url)
+        if "@" in url_str:
+            return f"postgresql://[credentials-hidden]@{url_str.split('@')[-1]}"
+        return url_str
+
+    def get_connection(self) -> sa.Connection:
+        """Provide raw connection for compatibility."""
+        return self._engine.connect()
+
+    def close(self) -> None:
+        """Close repository."""
+        self._is_closed = True
+
+    def __enter__(self) -> "RelationalRepository":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    def init_schema(self) -> None:
+        """Initialize all relational tables."""
+        init_relational_schema(self._engine)
+
+    def _prepare_session_record(self, session: Union[SessionRecord, dict]) -> SessionRecord:
+        """Validate and construct contract-compliant SessionRecord."""
+        if isinstance(session, SessionRecord):
+            clean = asdict(session)
+        elif isinstance(session, dict):
+            clean = dict(session)
+        else:
+            raise TypeError(f"Expected SessionRecord or dict, got {type(session).__name__}")
+
+        val_res = validate_session_dict(clean)
+        if not val_res.is_valid:
+            raise ValueError(f"Session validation failed: {'; '.join(val_res.errors)}")
+
+        return SessionRecord(
+            session_id=str(clean["session_id"]),
+            class_id=str(clean["class_id"]),
+            session_date=str(clean["session_date"]),
+            expected_enrollment=int(clean["expected_enrollment"]),
+            present_count=int(clean["present_count"]),
+            absent_count=int(clean["absent_count"]),
+            webcam_status=str(clean["webcam_status"]),
+            webcam_count=int(clean["webcam_count"]) if clean.get("webcam_count") is not None else None,
+            record_source=str(clean["record_source"]),
+            created_at=str(clean["created_at"]),
+        )
+
+    def _prepare_session_batch(
+        self, sessions: Union[pd.DataFrame, Sequence[Union[SessionRecord, dict]]]
+    ) -> list[SessionRecord]:
+        """Validate a batch of sessions for insertion."""
+        if isinstance(sessions, pd.DataFrame):
+            val_res = validate_session_dataframe(sessions)
+            if not val_res.is_valid:
+                raise ValueError(f"Batch validation failed: {'; '.join(val_res.errors)}")
+            records = []
+            for _, row in sessions.iterrows():
+                r_dict = row.to_dict()
+                records.append(self._prepare_session_record(r_dict))
+            return records
+
+        records = [self._prepare_session_record(s) for s in sessions]
+        # Check intra-batch uniqueness
+        seen_keys: set[tuple[str, str]] = set()
+        seen_ids: set[str] = set()
+        for r in records:
+            key = (r.class_id, r.session_date)
+            if key in seen_keys:
+                raise ValueError(f"Duplicate class/date in batch: {key}")
+            seen_keys.add(key)
+            if r.session_id in seen_ids:
+                raise ValueError(f"Duplicate session_id in batch: {r.session_id}")
+            seen_ids.add(r.session_id)
+        return records
+
+    def save_session(self, session: Union[SessionRecord, dict]) -> SessionRecord:
+        """Save a single session record, raising sqlite3.IntegrityError on collisions."""
+        rec = self._prepare_session_record(session)
+        with self._engine.begin() as conn:
+            # Check unique constraint (class_id, session_date)
+            exists = conn.execute(
+                sa.select(sa.func.count()).select_from(attendance_sessions_table).where(
+                    attendance_sessions_table.c.class_id == rec.class_id,
+                    attendance_sessions_table.c.session_date == rec.session_date,
+                )
+            ).scalar()
+            if exists:
+                raise sqlite3.IntegrityError(
+                    f"Record for class '{rec.class_id}' on date '{rec.session_date}' already exists."
+                )
+
+            # Check unique session_id
+            id_exists = conn.execute(
+                sa.select(sa.func.count()).select_from(attendance_sessions_table).where(
+                    attendance_sessions_table.c.session_id == rec.session_id
+                )
+            ).scalar()
+            if id_exists:
+                raise sqlite3.IntegrityError(f"Record with session_id '{rec.session_id}' already exists.")
+
+            conn.execute(attendance_sessions_table.insert().values(asdict(rec)))
+        return rec
+
+    def save_sessions(
+        self, sessions: Union[pd.DataFrame, Sequence[Union[SessionRecord, dict]]]
+    ) -> list[SessionRecord]:
+        """Save batch of sessions in an atomic transaction."""
+        records = self._prepare_session_batch(sessions)
+        if not records:
+            return []
+
+        with self._engine.begin() as conn:
+            for rec in records:
+                exists = conn.execute(
+                    sa.select(sa.func.count()).select_from(attendance_sessions_table).where(
+                        attendance_sessions_table.c.class_id == rec.class_id,
+                        attendance_sessions_table.c.session_date == rec.session_date,
+                    )
+                ).scalar()
+                if exists:
+                    raise sqlite3.IntegrityError(
+                        f"Record for class '{rec.class_id}' on date '{rec.session_date}' already exists."
+                    )
+                conn.execute(attendance_sessions_table.insert().values(asdict(rec)))
+        return records
+
+    def get_session_by_id(self, session_id: str) -> Optional[SessionRecord]:
+        """Retrieve a session record by its unique session_id."""
+        stmt = sa.select(attendance_sessions_table).where(attendance_sessions_table.c.session_id == session_id)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).mappings().fetchone()
+            if row is None:
+                return None
+            return SessionRecord(**dict(row))
+
+    def get_sessions(
+        self,
+        class_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        as_df: bool = False,
+    ) -> Union[list[SessionRecord], pd.DataFrame]:
+        """Retrieve sessions with optional filtering and stable ordering."""
+        stmt = sa.select(attendance_sessions_table)
+        if class_id is not None:
+            stmt = stmt.where(attendance_sessions_table.c.class_id == class_id)
+        if start_date is not None:
+            stmt = stmt.where(attendance_sessions_table.c.session_date >= start_date)
+        if end_date is not None:
+            stmt = stmt.where(attendance_sessions_table.c.session_date <= end_date)
+
+        stmt = stmt.order_by(
+            attendance_sessions_table.c.session_date.asc(),
+            attendance_sessions_table.c.class_id.asc(),
+            attendance_sessions_table.c.session_id.asc(),
+        )
+
+        with self._engine.connect() as conn:
+            rows = [dict(r) for r in conn.execute(stmt).mappings().fetchall()]
+
+        if as_df:
+            df = pd.DataFrame(rows, columns=SESSION_COLUMNS)
+            if "webcam_count" in df.columns:
+                df["webcam_count"] = pd.Series(
+                    [r["webcam_count"] if r["webcam_count"] is not None else None for r in rows],
+                    dtype=object,
+                )
+            return df
+
+        return [SessionRecord(**r) for r in rows]
+
+    def _prepare_alerts(
+        self, alerts: Sequence[Union[Alert, dict]]
+    ) -> tuple[list[dict], list[Alert]]:
+        """Validate and serialize alerts for insertion."""
+        alert_dicts: list[dict] = []
+        alert_objs: list[Alert] = []
+
+        for a in alerts:
+            if isinstance(a, Alert):
+                ad = asdict(a)
+                a_obj = a
+            elif isinstance(a, dict):
+                ad = dict(a)
+                # Construct Alert object
+                for f in ("observed_value", "baseline_reference", "threshold_applied"):
+                    if isinstance(ad.get(f), str):
+                        try:
+                            ad[f] = json.loads(ad[f])
+                        except Exception:
+                            pass
+                a_obj = Alert(**ad)
+            else:
+                raise TypeError(f"Invalid alert element type: {type(a).__name__}")
+
+            if a_obj.review_status not in VALID_REVIEW_STATUSES:
+                raise ValueError(f"Invalid review_status: {a_obj.review_status}")
+
+            # Serialize dict values for Text column insertion
+            raw_ad = asdict(a_obj)
+            for f in ("observed_value", "baseline_reference", "threshold_applied"):
+                if isinstance(raw_ad[f], (dict, list)):
+                    raw_ad[f] = json.dumps(raw_ad[f])
+
+            alert_dicts.append(raw_ad)
+            alert_objs.append(a_obj)
+
+        return alert_dicts, alert_objs
+
+    def save_alerts(self, alerts: Sequence[Union[Alert, dict]]) -> list[Alert]:
+        """Save a batch of alerts idempotently."""
+        if not alerts:
+            return []
+
+        alert_dicts, alert_objs = self._prepare_alerts(alerts)
+
+        with self._engine.begin() as conn:
+            for ad in alert_dicts:
+                # Enforce FK integrity: session must exist
+                sess_exists = conn.execute(
+                    sa.select(sa.func.count()).select_from(attendance_sessions_table).where(
+                        attendance_sessions_table.c.session_id == ad["session_id"]
+                    )
+                ).scalar()
+                if not sess_exists:
+                    raise sqlite3.IntegrityError(
+                        f"Referenced session_id '{ad['session_id']}' does not exist in attendance_sessions."
+                    )
+
+                # Check if alert already exists (idempotent, preserve existing review_status)
+                exists = conn.execute(
+                    sa.select(sa.func.count()).select_from(alerts_table).where(
+                        alerts_table.c.alert_id == ad["alert_id"]
+                    )
+                ).scalar()
+                if not exists:
+                    conn.execute(alerts_table.insert().values(ad))
+
+        return alert_objs
+
+    def get_alert_by_id(self, alert_id: str) -> Optional[Alert]:
+        """Retrieve an alert by its unique alert_id."""
+        stmt = sa.select(alerts_table).where(alerts_table.c.alert_id == alert_id)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).mappings().fetchone()
+            if row is None:
+                return None
+            d = dict(row)
+            for f in ("observed_value", "baseline_reference", "threshold_applied"):
+                if isinstance(d[f], str):
+                    try:
+                        d[f] = json.loads(d[f])
+                    except Exception:
+                        pass
+            return Alert(**d)
+
+    def get_alerts(
+        self,
+        review_status: Optional[str] = None,
+        class_id: Optional[str] = None,
+        rule_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        as_df: bool = False,
+    ) -> Union[list[Alert], pd.DataFrame]:
+        """Retrieve alerts with optional filtering and stable chronological ordering."""
+        stmt = sa.select(alerts_table)
+        if review_status is not None:
+            stmt = stmt.where(alerts_table.c.review_status == review_status)
+        if class_id is not None:
+            stmt = stmt.where(alerts_table.c.class_id == class_id)
+        if rule_id is not None:
+            stmt = stmt.where(alerts_table.c.rule_id == rule_id)
+        if start_date is not None:
+            stmt = stmt.where(alerts_table.c.session_date >= start_date)
+        if end_date is not None:
+            stmt = stmt.where(alerts_table.c.session_date <= end_date)
+
+        stmt = stmt.order_by(
+            alerts_table.c.session_date.asc(),
+            alerts_table.c.class_id.asc(),
+            alerts_table.c.rule_id.asc(),
+            alerts_table.c.alert_id.asc(),
+        )
+
+        with self._engine.connect() as conn:
+            rows = [dict(r) for r in conn.execute(stmt).mappings().fetchall()]
+
+        for d in rows:
+            for f in ("observed_value", "baseline_reference", "threshold_applied"):
+                if isinstance(d[f], str):
+                    try:
+                        d[f] = json.loads(d[f])
+                    except Exception:
+                        pass
+
+        if as_df:
+            if not rows:
+                return pd.DataFrame(columns=ALERT_COLUMNS)
+            return pd.DataFrame(rows, columns=ALERT_COLUMNS)
+
+        return [Alert(**d) for d in rows]
+
+    def update_alert_review_status(self, alert_id: str, new_status: str) -> bool:
+        """Update an alert's review status."""
+        if new_status not in VALID_REVIEW_STATUSES:
+            raise ValueError(f"Invalid review_status '{new_status}'.")
+
+        with self._engine.begin() as conn:
+            res = conn.execute(
+                sa.update(alerts_table).where(alerts_table.c.alert_id == alert_id).values(review_status=new_status)
+            )
+            return bool(res.rowcount > 0)
+
+    def add_alert_review(
+        self,
+        alert_id: str,
+        new_status: str,
+        notes: Optional[str] = None,
+        reviewed_at: Optional[str] = None,
+    ) -> bool:
+        """Record an explicit human review decision with optional notes."""
+        if new_status not in VALID_REVIEW_STATUSES:
+            raise ValueError(f"Invalid review_status '{new_status}'.")
+
+        ts = reviewed_at or datetime.now(timezone.utc).isoformat()
+        review_id = f"REV-{uuid.uuid4()}"
+
+        with self._engine.begin() as conn:
+            upd = conn.execute(
+                sa.update(alerts_table).where(alerts_table.c.alert_id == alert_id).values(review_status=new_status)
+            )
+            if upd.rowcount == 0:
+                return False
+
+            conn.execute(
+                alert_reviews_table.insert().values(
+                    review_id=review_id,
+                    alert_id=alert_id,
+                    new_status=new_status,
+                    notes=notes.strip() if notes else None,
+                    reviewed_at=ts,
+                )
+            )
+            return True
+
+    def get_alert_reviews(self, alert_id: str) -> list[dict]:
+        """Fetch all historical review decisions and notes for an alert."""
+        stmt = sa.select(alert_reviews_table).where(
+            alert_reviews_table.c.alert_id == alert_id
+        ).order_by(alert_reviews_table.c.reviewed_at.asc())
+        with self._engine.connect() as conn:
+            return [dict(r) for r in conn.execute(stmt).mappings().fetchall()]
+
+    def save_session_batch_with_alerts(
+        self,
+        sessions: Union[pd.DataFrame, Sequence[Union[SessionRecord, dict]]],
+        alerts: Sequence[Union[Alert, dict]],
+    ) -> tuple[list[SessionRecord], list[Alert]]:
+        """Persist a batch of sessions and associated alerts in a single transaction."""
+        session_records = self._prepare_session_batch(sessions) if sessions is not None else []
+        alert_dicts, alert_objs = self._prepare_alerts(alerts) if alerts else ([], [])
+
+        with self._engine.begin() as conn:
+            for rec in session_records:
+                exists = conn.execute(
+                    sa.select(sa.func.count()).select_from(attendance_sessions_table).where(
+                        attendance_sessions_table.c.class_id == rec.class_id,
+                        attendance_sessions_table.c.session_date == rec.session_date,
+                    )
+                ).scalar()
+                if exists:
+                    raise sqlite3.IntegrityError(
+                        f"Record for class '{rec.class_id}' on date '{rec.session_date}' already exists."
+                    )
+                conn.execute(attendance_sessions_table.insert().values(asdict(rec)))
+
+            for ad in alert_dicts:
+                exists = conn.execute(
+                    sa.select(sa.func.count()).select_from(alerts_table).where(
+                        alerts_table.c.alert_id == ad["alert_id"]
+                    )
+                ).scalar()
+                if not exists:
+                    conn.execute(alerts_table.insert().values(ad))
+
+        return session_records, alert_objs
 

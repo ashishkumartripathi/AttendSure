@@ -205,14 +205,14 @@ def is_auth_required() -> bool:
     """Determine whether authentication gate is currently active.
 
     Policy:
-    - If ATTENDSURE_AUTH_REQUIRED env var is explicitly set, honor its boolean value.
+    - If ATTENDSURE_AUTH_REQUIRED env var or secret is explicitly set, honor its boolean value.
     - If running under pytest or test harnesses without explicit setting, return False
       to ensure non-interactive tests run without manual login intervention.
     - Otherwise (production, cloud deployment, local interactive execution), return True.
     """
-    env_override = os.environ.get("ATTENDSURE_AUTH_REQUIRED")
+    env_override = _get_config_value("ATTENDSURE_AUTH_REQUIRED")
     if env_override is not None:
-        return env_override.strip().lower() in ("1", "true", "yes", "on")
+        return str(env_override).strip().lower() in ("1", "true", "yes", "on")
 
     if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST"):
         return False
@@ -402,8 +402,8 @@ def render_login_screen() -> None:
 
         # Demonstration Access Guidance (Hidden in Production Mode)
         is_prod = (
-            os.environ.get("ATTENDSURE_ENVIRONMENT") == "production"
-            or os.environ.get("ATTENDSURE_IS_PRODUCTION") == "1"
+            _get_config_value("ATTENDSURE_ENVIRONMENT") in ("production", "prod")
+            or _get_config_value("ATTENDSURE_IS_PRODUCTION") in ("1", "true", "yes")
         )
         if not is_prod:
             with st.expander("ℹ️  Evaluator Demonstration Guidance", expanded=False):

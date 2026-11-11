@@ -58,3 +58,5 @@ deliverables_backup/
 *.pdf
 *.pptx
 screen_*.png
+.neon
+node_modules/

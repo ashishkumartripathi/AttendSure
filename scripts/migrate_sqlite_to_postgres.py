@@ -43,6 +43,15 @@ def main():
 
     target_url = args.target_url or os.environ.get("ATTENDSURE_DATABASE_URL") or os.environ.get("DATABASE_URL")
     if not target_url:
+        try:
+            from dotenv import dotenv_values
+            env_file = _PROJECT_ROOT / ".env.local"
+            if env_file.exists():
+                vals = dotenv_values(env_file)
+                target_url = vals.get("ATTENDSURE_DATABASE_URL") or vals.get("DATABASE_URL")
+        except Exception:
+            pass
+    if not target_url:
         print("Error: No target database URL provided. Pass --target-url or set ATTENDSURE_DATABASE_URL.")
         sys.exit(1)
 
