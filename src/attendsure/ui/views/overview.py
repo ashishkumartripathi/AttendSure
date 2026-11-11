@@ -100,15 +100,62 @@ def render_overview() -> None:
     pending_alerts = [a for a in alerts if a.review_status == "PENDING_REVIEW"]
     pending_count = len(pending_alerts)
 
+    # Inspect whether attendance sessions exist for today's date
+    today_iso = datetime.now().strftime("%Y-%m-%d")
+    today_display_date = datetime.now().strftime("%d %b %Y")
+    today_sessions = (
+        sessions_df[sessions_df["session_date"] == today_iso]
+        if not sessions_df.empty and "session_date" in sessions_df.columns
+        else pd.DataFrame()
+    )
+    has_today_sessions = not today_sessions.empty
+
+    if has_today_sessions:
+        today_enrolled = int(today_sessions["expected_enrollment"].sum())
+        today_present = int(today_sessions["present_count"].sum())
+        today_absent = (
+            int(today_sessions["absent_count"].sum())
+            if "absent_count" in today_sessions.columns
+            else today_enrolled - today_present
+        )
+        today_rate_val = (today_present / today_enrolled * 100.0) if today_enrolled > 0 else 0.0
+        today_rate_str = f"{today_rate_val:.1f}%"
+
+    # Display empty-state banner for Today when roll call has not yet been recorded
+    if not has_today_sessions and not sessions_df.empty:
+        st.markdown(
+            f"""
+            <div class="today-empty-banner" style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <div style="font-weight: 600; font-size: 0.90rem; color: #1E293B;">
+                        📅 Today's Attendance ({today_display_date}): Not Recorded Yet
+                    </div>
+                    <div style="font-size: 0.80rem; color: #64748B; margin-top: 2px;">
+                        No class roll calls have been submitted for today. Click <b>Mark Today's Attendance</b> above to record today's sessions.
+                    </div>
+                </div>
+                <span style="background: #E2E8F0; color: #475569; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 6px;">Awaiting Roll Call</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     # Responsive metrics wrapper prevents awkward wrapping or label truncation on tablet/mobile
+    # Labels transparently distinguish Today's active roll call from historical term totals
     st.markdown("<div class='overview-metrics-wrapper'>", unsafe_allow_html=True)
     m1, m2, m3, m4, m5 = st.columns(5)
-    # Primary teacher questions with consistent labels matching test assertions
-    m1.metric(label="Total Students", value=total_enrollment if total_enrollment > 0 else 0)
-    m2.metric(label="Present Today", value=total_present if total_sessions > 0 else 0)
-    m3.metric(label="Absent Today", value=total_absent if total_sessions > 0 else 0)
-    m4.metric(label="Attendance Rate", value=overall_rate_str)
-    m5.metric(label="Needs Attention", value=pending_count)
+    if has_today_sessions:
+        m1.metric(label="Total Students", value=today_enrolled)
+        m2.metric(label="Present Today", value=today_present)
+        m3.metric(label="Absent Today", value=today_absent)
+        m4.metric(label="Attendance Rate", value=today_rate_str)
+        m5.metric(label="Needs Attention", value=pending_count)
+    else:
+        m1.metric(label="Total Enrolment Across Sessions", value=total_enrollment if total_enrollment > 0 else 0)
+        m2.metric(label="Total Present Records", value=total_present if total_sessions > 0 else 0)
+        m3.metric(label="Total Absent Records", value=total_absent if total_sessions > 0 else 0)
+        m4.metric(label="Attendance Rate", value=overall_rate_str)
+        m5.metric(label="Needs Attention", value=pending_count)
     st.markdown("</div>", unsafe_allow_html=True)
 
     # Developer View: Exposed only when Developer Mode is active
@@ -154,13 +201,22 @@ def render_overview() -> None:
             daily_summary = daily_summary.sort_values("session_date")
             chart_df = daily_summary.rename(columns={"attendance_rate_pct": "Attendance Rate (%)"})
 
+            # Calculate class coverage per date to explain partial days transparently
+            classes_per_day = sessions_df.groupby("session_date")["class_id"].nunique().to_dict()
+            chart_df["classes_recorded"] = chart_df["session_date"].map(classes_per_day)
+            chart_df["coverage_note"] = chart_df["classes_recorded"].apply(
+                lambda count: f"{count} of {total_cohorts} classes (Partial Day)"
+                if count < total_cohorts
+                else f"All {total_cohorts} classes"
+            )
+
             chart_card_header = """<div class="attendsure-card-chart">
 <div class="card-header-row">
 <div class="card-header-left">
 <div class="card-header-icon" style="background-color: #CCFBF1; border-color: #99F6E4; color: #0F766E;">📈</div>
 <div>
 <h3 class="card-header-title">Daily Attendance Trend</h3>
-<p class="card-header-sub">Longitudinal schoolwide attendance percentage over time.</p>
+<p class="card-header-sub">Longitudinal schoolwide attendance percentage over time. Note: Dates with partial submissions reflect only the classes recorded.</p>
 </div>
 </div>
 </div>"""
@@ -170,12 +226,13 @@ def render_overview() -> None:
                 x=alt.X(
                     "session_date:N",
                     title="Date",
+                    sort=chart_df["session_date"].tolist(),
                     axis=alt.Axis(
-                        labelAngle=0,
+                        labelAngle=-35,
                         labelColor="#64748B",
                         tickColor="#CBD5E1",
                         domainColor="#CBD5E1",
-                        labelFontSize=11,
+                        labelFontSize=10,
                     ),
                 ),
                 y=alt.Y(
@@ -196,6 +253,7 @@ def render_overview() -> None:
                     alt.Tooltip("Attendance Rate (%):Q", title="Attendance Rate", format=".1f"),
                     alt.Tooltip("present_count:Q", title="Students Present"),
                     alt.Tooltip("expected_enrollment:Q", title="Total Enrolled"),
+                    alt.Tooltip("coverage_note:N", title="Class Coverage"),
                 ],
             )
 
