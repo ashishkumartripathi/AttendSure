@@ -26,10 +26,10 @@ from attendsure.data.storage import AttendanceRepository
 
 
 def test_database_url_normalization(monkeypatch):
-    """Verify get_database_url normalizes postgres:// to postgresql:// for SQLAlchemy."""
+    """Verify get_database_url normalizes postgres:// to postgresql+psycopg:// for SQLAlchemy."""
     monkeypatch.setenv("DATABASE_URL", "postgres://user:pass@host:5432/db")
     url = get_database_url()
-    assert url.startswith("postgresql://")
+    assert url.startswith("postgresql+psycopg://")
     assert is_postgres_url(url) is True
 
     monkeypatch.setenv("DATABASE_URL", "sqlite:///test.db")

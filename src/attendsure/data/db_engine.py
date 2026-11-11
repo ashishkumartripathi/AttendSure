@@ -148,11 +148,7 @@ def get_database_url(fallback_to_sqlite: bool = True) -> Optional[str]:
             pass
 
     if raw_url and str(raw_url).strip():
-        url = str(raw_url).strip()
-        # Normalise legacy postgres:// prefix to postgresql:// for SQLAlchemy compatibility
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
-        return url
+        return normalize_postgres_url(str(raw_url).strip())
 
     if not fallback_to_sqlite:
         return None
@@ -166,6 +162,27 @@ def get_database_url(fallback_to_sqlite: bool = True) -> Optional[str]:
 
     # Form standard sqlite:/// URL
     return f"sqlite:///{p.as_posix()}"
+
+
+def normalize_postgres_url(raw_url: str) -> str:
+    """Normalize a PostgreSQL connection URL to explicitly use psycopg v3 dialect.
+
+    Maps:
+    - postgres://... -> postgresql+psycopg://...
+    - postgresql://... -> postgresql+psycopg://...
+    - postgresql+psycopg2://... -> postgresql+psycopg://...
+    - postgresql+psycopg://... -> unchanged
+    """
+    if not raw_url:
+        return raw_url
+    url = str(raw_url).strip()
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql+psycopg2://"):
+        return url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return url
 
 
 def is_production_mode() -> bool:
@@ -187,7 +204,10 @@ def is_production_mode() -> bool:
 
 def is_postgres_url(url: str) -> bool:
     """Return True if connection URL targets a PostgreSQL server."""
-    return url.startswith("postgresql://") or url.startswith("postgresql+") or url.startswith("postgres://")
+    if not url:
+        return False
+    u = str(url).strip()
+    return u.startswith("postgresql://") or u.startswith("postgresql+") or u.startswith("postgres://")
 
 
 def create_db_engine(url: Optional[str] = None) -> sa.Engine:
@@ -195,7 +215,8 @@ def create_db_engine(url: Optional[str] = None) -> sa.Engine:
     target_url = url if url is not None else get_database_url()
     
     if is_postgres_url(target_url):
-        # Configure pooling and timeout for cloud PostgreSQL
+        target_url = normalize_postgres_url(target_url)
+        # Configure pooling and timeout for cloud PostgreSQL with psycopg v3
         return sa.create_engine(
             target_url,
             pool_size=5,
