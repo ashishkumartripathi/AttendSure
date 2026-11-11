@@ -3,10 +3,10 @@
 **Official Project Title:** Rural School Attendance Integrity and Intervention Decision System  
 **Repository:** https://github.com/ashishkumartripathi/AttendSure  
 **Branch:** `feature/modern-saas-ui`  
-**Latest Commit Hash:** `e25aac9504119637e32cf029e8ba1e07bcb70b8f`  
+**Latest Verified Commit:** `f65ff3f7025b9b97ae8b2068bdda08e313ff01d9`  
 **Target `main` Branch Status:** Strictly unchanged at `7324e9e067b7b0d01084b486adc04d0cc0a38c66`  
 **Project Mentor:** Mr. Hitesh Jangid  
-**Production Database:** Neon PostgreSQL (`aws-ap-southeast-1`)  
+**Production Database:** Neon Managed PostgreSQL 18.6 (`aws-ap-southeast-1`)  
 **Operational Database SHA256:** `46C22853EF5697DFE449FD0D61CFE5E719A84FF5C8260A2BA0F16935ED97F6AE` (Verified Unaltered)  
 **Evaluation Date:** 2026-11-11  
 
@@ -20,13 +20,23 @@ This report documents the exhaustive, evidence-based technical evaluation of the
 
 1. **Application Functionality:** All 6 primary screens (Overview, Mark Attendance, Attendance Records, Needs Attention, Reports, Settings) pass end-to-end headless testing, state transitions, invariant validation, and user role gating.
 2. **Database & Schema Integrity:** The schema enforces 6 relational check constraints, primary keys, cascading foreign keys, unique constraint on `(class_id, session_date)`, and connection pooling. Production mode strictly forbids silent SQLite fallback.
-3. **Camera Silhouette Estimation:** The non-biometric person-count estimator achieves an empirical Mean Absolute Error (MAE) of **0.00** on clean synthetic silhouettes (1–5 students) and **0.44** across all 9 benchmark scenarios including bench clusters and edge noise. The pipeline transparently flags degraded frames (`is_uncertain=True`) and enforces mandatory educator confirmation.
+3. **Camera Silhouette Estimation (Synthetic Benchmark):**
+   - The non-biometric person-count estimator achieves an empirical Mean Absolute Error (MAE) of **0.00** on clean synthetic silhouettes (1–5 students) and **0.14** across the 7 original standard cases (zero-error = **85.7%**).
+   - Across all 9 numeric benchmark scenarios (including bench clusters and degraded frames), MAE is **0.44** (zero-error = **77.8%**).
+   - Degraded frames are transparently flagged (`is_uncertain=True`), and the system strictly enforces mandatory educator verification before records are committed.
+   - *Scientific boundary:* These metrics reflect synthetic high-contrast silhouettes and must **not** be interpreted as real-world classroom accuracy.
 4. **Explainable Anomaly Detection:**
-   - **Deterministic Production Rules:** Evaluated on 150 synthetic sessions with a 5.0% anomaly injection rate: Accuracy = **96.67%**, Precision = **100.00%**, Session-Level Recall = **54.55%**, Specificity = **100.00%**, and Event-Level Recall = **100.00%** (all multi-day anomaly episodes detected).
+   - **Deterministic Production Rules:** Evaluated on 150 synthetic sessions with a 5.0% anomaly injection rate: Accuracy = **96.67%**, Precision = **100.00%**, Session-Level Recall = **54.55%** (6/11), Specificity = **100.00%**, and Event-Level Recall = **100.00%** (2/2 multi-day episodes detected).
    - **Supervised Machine Learning (Decision Tree):** Evaluated on 88 holdout testing sessions across 4 unseen classes: Accuracy = **92.05%**, Precision = **40.00%**, Recall = **80.00%**, Specificity = **92.77%**, F1-Score = **53.33%**.
-5. **System Performance:** The connection pooling and read-cache optimizations achieved warm screen navigation times of **158 ms to 343 ms** for common workflows, and an average warm script rerun time of **~1,372 ms** against live cloud PostgreSQL in Singapore. Cold app launch completes in **~6.55 s**, and login-to-dashboard transition occurs in **~2.02 s**.
-6. **Privacy & Ethical Boundaries:** The application collects zero facial biometric data, extracts no embeddings, permanently stores no camera images, and maintains aggregated cohort-level attendance records exclusively.
-7. **Automated Test Suite:** **414 of 414 automated tests pass** in **89.79 seconds** without warnings or regressions.
+5. **System Performance & SLA:**
+   - Four screens achieve responsive navigation: Overview (**343 ms** p50), Attendance Records (**158 ms** p50), Settings (**1,017 ms** p50), and Mark Attendance (**1,034 ms** p50).
+   - Two screens are noticeably slower and exceed the 2-second target: **Needs Attention** (**2,000 ms** p50 / 2,975 ms p95) and **Reports & Export** (**3,684 ms** p50 / 6,901 ms p95).
+   - Network transit to Neon in Singapore accounts for **~422 ms** baseline round-trip time.
+6. **Security & Privacy:**
+   - Role-Based Access Control (RBAC) separates Headmasters from Teachers. Passwords use PBKDF2-HMAC-SHA256 with 100,000 iterations.
+   - Zero facial biometrics are extracted or stored.
+   - Hardware KMS encryption at rest and PostgreSQL Row-Level Security are documented as `NOT IMPLEMENTED`.
+7. **Automated Test Suite:** **414 of 414 automated tests pass** in **87.32 seconds** with 0 regressions and 0 warnings.
 
 ---
 
@@ -119,17 +129,40 @@ An automated audit of database constraints, transaction isolation, security poli
 | `alerts` | `chk_alerts_review_status` | Check Constraint | `IN ('PENDING_REVIEW', 'ACKNOWLEDGED', 'RESOLVED', 'DISMISSED')` | State machine verified | **PASS** |
 | `alert_reviews` | `fk_reviews_alert` | Foreign Key | `alert_id -> alerts.alert_id (CASCADE)` | Cascade deletion verified | **PASS** |
 
-### 4.2 Security & Policy Verification
+### 4.2 Security Policies & Implementation Evidence
 
 1. **Zero Silent Fallback in Production:** When `ATTENDSURE_ENVIRONMENT=production` is set and `DATABASE_URL` is omitted, `test_db_connection()` explicitly returns `(False, "Production mode requires managed Neon PostgreSQL (DATABASE_URL)")`, and `get_repository()` raises `RuntimeError`. The application **refuses** to start on local SQLite in production mode.
-2. **Transactional Atomicity (All-or-Nothing):** When saving a batch containing one valid session and one invalid session violating `chk_sessions_count_invariant`, the entire transaction rolls back. Count of stored records remains **0**.
-3. **Cryptographic Password Security:** Passwords are never stored in plaintext. They are hashed using PBKDF2 with HMAC-SHA256 and 100,000 iterations with unique 16-byte random salts. Timing attacks are mitigated using constant-time comparison (`hmac.compare_digest`).
-4. **Role-Based Access Control (RBAC):**
-   - **Headmaster / Administrator:** Possesses `{"mark_attendance", "view_records", "manage_alerts", "manage_settings"}`.
-   - **Classroom Teacher:** Restricted strictly to `{"mark_attendance", "view_records"}`. Attempting alert reviews or settings modifications renders an access-restricted card.
-5. **Live Production Database Connection:**
-   - Database Host: Neon PostgreSQL 18.6 (aarch64) in AWS Singapore (`aws-ap-southeast-1`).
-   - Verified Active Records: **62 sessions**, **15 alerts**, **2 alert reviews** currently stored safely.
+2. **Transactional Atomicity (All-or-Nothing):** When saving a batch containing one valid session and one invalid session violating `chk_sessions_count_invariant`, the entire transaction rolls back cleanly. Count of stored records remains **0**.
+3. **Cryptographic Password Security:** Passwords are never stored in plaintext. They are hashed using PBKDF2 with HMAC-SHA256, 100,000 iterations, and unique 16-byte cryptographically secure random salts (`os.urandom(16)`). Timing attacks are mitigated using constant-time comparison (`secrets.compare_digest`).
+4. **Secret Handling & Repository Hygiene:** No credentials or connection strings are committed to version control. The `.env.local` configuration is explicitly ignored in `.gitignore`. Production environments inject secrets via environment variables or Streamlit secrets (`st.secrets`).
+
+### 4.3 Institutional Role-Based Access Control (RBAC) Permission Matrix
+
+The institutional security architecture separates user capabilities into distinct tiers. The table below documents verified and unverified properties:
+
+| Operation / Capability | Unauthenticated User | Classroom Teacher (`ROLE_TEACHER`) | Headmaster / Administrator (`ROLE_HEADMASTER`) | Verification Status |
+| :--- | :---: | :---: | :---: | :---: |
+| **Application Access & Navigation** | Blocked (Login Gate) | Allowed (Permitted views) | Allowed (All 6 views) | **VERIFIED** |
+| **Mark Daily Attendance (`mark_attendance`)** | Blocked | Allowed | Allowed | **VERIFIED** |
+| **View Attendance Records (`view_records`)** | Blocked | Allowed | Allowed | **VERIFIED** |
+| **View Longitudinal Reports & Export CSV (`view_reports`)** | Blocked | Allowed | Allowed | **VERIFIED** |
+| **View Anomaly Intelligence (`view_intelligence`)** | Blocked | Blocked (Access Restricted Card) | Allowed | **VERIFIED** |
+| **Review & Resolve Alerts (`manage_alerts`)** | Blocked | Blocked (Permission Denied) | Allowed | **VERIFIED** |
+| **Modify School Settings (`manage_settings`)** | Blocked | Blocked (Permission Denied) | Allowed | **VERIFIED** |
+| **Access Diagnostic Laboratory (`access_laboratory`)** | Blocked | Blocked | Allowed | **VERIFIED** |
+| **Hardware KMS Encryption at Rest** | N/A | N/A | N/A | **NOT IMPLEMENTED** |
+| **PostgreSQL Row-Level Security (RLS)** | N/A | N/A | N/A | **NOT IMPLEMENTED** |
+| **View-Level Component Gating** | N/A | Partially Wired | Allowed | **PARTIALLY VERIFIED** |
+
+*Security Footnotes:*
+- *Hardware KMS Encryption at Rest:* **NOT IMPLEMENTED / NOT VERIFIED.** The local SQLite database is unencrypted on the filesystem. The managed Neon PostgreSQL instance uses AWS EBS volume encryption managed by the cloud provider, but customer-managed keys (CMEK) via AWS KMS are not implemented.
+- *PostgreSQL Row-Level Security (RLS):* **NOT IMPLEMENTED / NOT VERIFIED.** School tenant isolation is handled at the application layer via `school_id` filtering in SQL queries rather than native PostgreSQL `CREATE POLICY` RLS rules.
+- *View-Level Component Gating:* **PARTIALLY VERIFIED.** Route navigation and critical actions enforce permissions via `auth.py`, but disabling individual button widgets within permitted views for lower-privilege users is partially wired.
+
+### 4.4 Live Production Database Connection Details
+- **Database Engine:** Managed Neon PostgreSQL 18.6 (aarch64) in AWS Singapore (`aws-ap-southeast-1`).
+- **Connection Scheme:** `postgresql+psycopg://` with SSL mode `require`.
+- **Verified Active Records:** **62 sessions**, **15 alerts**, **2 alert reviews** currently stored safely.
 
 *Reproducible Execution Command:*  
 `python scratch/audit_task2_security.py`
@@ -138,7 +171,7 @@ An automated audit of database constraints, transaction isolation, security poli
 
 ## 5. Camera Silhouette Estimation Evaluation (Task 3)
 
-The camera pipeline provides assistive, non-biometric person-count estimation from classroom group photos.
+The camera module provides an assistive, non-biometric person-count estimation from classroom group photos.
 
 ### 5.1 Pipeline Stages & Mechanism
 1. **HTML5 Capture Stream:** Frame captured in browser via `st.camera_input`, transferred to application memory via standard multipart POST.
@@ -155,7 +188,9 @@ The camera pipeline provides assistive, non-biometric person-count estimation fr
 
 ### 5.2 Synthetic Benchmark Results
 
-The seven standardized benchmark scenarios and edge conditions were evaluated:
+The ten standardized benchmark scenarios were evaluated in two distinct cohorts: the 7 original standard benchmark cases and the 3 degraded/edge cases.
+
+#### Table 1: Standard Benchmark Scenarios (Cases 1–7)
 
 | Scenario / Case Description | Ground Truth (GT) | Predicted Count | Absolute Error | Confidence Score | Uncertainty Flag | Image Quality Status | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -166,16 +201,41 @@ The seven standardized benchmark scenarios and edge conditions were evaluated:
 | **Case 5: Five Students (Dense Row)** | 5 | 5 | 0 | 85.0% | `False` | `GOOD` | **PASS** |
 | **Case 6: Double Bench Cluster + 1 Isolated** | 3 | 2 | 1 | 85.0% | `False` | `GOOD` | **PASS** |
 | **Case 7: 1 Student + Desk & Wall Edge Noise** | 1 | 1 | 0 | 85.0% | `False` | `GOOD` | **PASS** |
+
+**Summary Metrics for Standard Cases 1–7 (Synthetic Benchmark Performance):**
+- **Clean Silhouette MAE (Cases 1–5 & 7):** **0.00** across isolated seated configurations.
+- **Original 7-Case MAE:** $\frac{0 + 0 + 0 + 0 + 0 + 1 + 0}{7} = \frac{1}{7} \approx \mathbf{0.14}$.
+- **Zero-Error Percentage (Cases 1–7):** $\frac{6}{7} = \mathbf{85.7\%}$.
+
+#### Table 2: Degraded & Edge Scenarios (Cases 8–10)
+
+| Scenario / Case Description | Ground Truth (GT) | Predicted Count | Absolute Error | Confidence Score | Uncertainty Flag | Image Quality Status | Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Case 8 (Edge): Blurred Scene (Heavy Blur)** | 3 | 3 | 0 | 50.0% | `True` | `BLURRED` | **PASS** |
-| **Case 9 (Edge): Dark Scene (Underexposed)** | 3 | 0 | 3 | 50.0% | `True` | `POOR_LIGHTING` | **PASS** |
+| **Case 9 (Edge): Dark Scene (Severe Underexposure)** | 3 | 0 | 3 | 50.0% | `True` | `POOR_LIGHTING` | **PASS** |
 | **Case 10 (Edge): Corrupted / Empty Bytes** | None | None | N/A | N/A | `True` | `INVALID_FORMAT` | **PASS** |
 
-### 5.3 Error Analysis & Scientific Distinctions
-- **Synthetic Silhouette MAE:** **0.00** across isolated seated scenes (Cases 1–5 & 7).
-- **Overall Benchmark MAE:** **0.44** across all 9 numeric cases (including clusters and lighting degradation).
-- **Overcounts:** 0 cases. **Undercounts:** 2 cases (severe underexposure and tight bench occlusion).
-- **Zero-Error Accuracy:** **77.8%** across all test frames.
-- **Scientific Disclosure:** High benchmark accuracy on high-contrast synthetic silhouettes **does not guarantee equivalent performance in real classrooms**. Real classrooms exhibit partial occlusion, non-uniform natural sunlight, colorful clothing, and student movement. Real-world deployment must treat the camera estimation as a decision-support check, requiring explicit teacher confirmation.
+#### Combined 9-Numeric-Case Synthetic Benchmark Performance
+
+| Evaluation Metric | Measured Synthetic Benchmark Value | Scientific Interpretation |
+| :--- | :---: | :--- |
+| **Combined Mean Absolute Error (MAE)** | **0.44** ($\frac{4}{9}$) | Sum of absolute errors = $1 (\text{Case 6}) + 3 (\text{Case 9}) = 4$ across 9 numeric cases. |
+| **Zero-Error Accuracy** | **77.8%** (7 / 9) | 7 of 9 numeric frames produced exact counts. |
+| **Undercounts** | **2 cases** (22.2%) | Case 6 undercounted by 1 (bench cluster); Case 9 undercounted by 3 (severe underexposure). |
+| **Overcounts** | **0 cases** (0.0%) | Zero false positive phantom detections occurred. |
+| **Degraded Frame Handling** | **100.0% Flagged** | Cases 8, 9, and 10 correctly set `is_uncertain=True` and assigned appropriate quality flags. |
+
+### 5.3 Scientific Disclosure & Real-World Reality
+> [!IMPORTANT]
+> **Synthetic Benchmark Disclosure:** All metrics reported above reflect **synthetic benchmark performance** on controlled, high-contrast black-and-white silhouette images. They **must not be interpreted as real-world classroom accuracy**.
+
+In real rural classrooms, several environmental and physical factors will significantly reduce contour estimation performance:
+1. **Severe Occlusion:** Students seated closely behind wooden benches frequently overlap, merging multiple torsos into a single contour.
+2. **Lighting Variations:** Harsh direct sunlight from open windows creates deep shadows; lack of electrical lighting on overcast days leads to underexposure.
+3. **Clothing & Background Contrast:** Non-uniform clothing colors and textured walls reduce the effectiveness of simple Otsu thresholding.
+4. **Student Movement & Non-Standard Postures:** Restless students create motion blur, and non-upright postures violate aspect ratio filters.
+
+For these reasons, the camera estimation module is strictly designed as a **decision-support aid**. The human teacher must always review and confirm the headcount before attendance is committed to the database.
 
 *Reproducible Execution Command:*  
 `python scratch/benchmark_task3_camera.py`
@@ -190,7 +250,7 @@ AttendSure implements two complementary anomaly detection approaches:
 
 ### 6.1 Deterministic Production Rules Benchmark
 
-Evaluated over the standard benchmark preset (5 monitored classes $\times$ 30 school days = 150 sessions total; 5.0% anomaly injection rate; random seed = 42).
+Evaluated over the standard testbench preset (5 monitored classes $\times$ 30 school days = 150 sessions total; 5.0% anomaly injection rate; random seed = 42).
 
 ```
 Confusion Matrix:
@@ -208,10 +268,57 @@ Predicted Negative        5 (FN)           139 (TN)
 | **F1-Score** | $\ge 60.0\%$ | **70.59%** | Strong harmonic balance between precision and recall. |
 | **Recall (Event-Level)** | $\ge 90.0\%$ | **100.00%** (2 of 2) | All multi-day anomaly episodes successfully triggered review alerts. |
 
-#### Operational Interpretation of Session vs. Event Recall
-The session-level recall of 54.55% is an inherent mathematical characteristic of the repeated headcount detector. When a repeated headcount sequence is injected (e.g., 4 consecutive days with the exact same count), the detector requires 4 days of history to trigger. Days 1, 2, and 3 are pre-threshold prefix sessions and cannot trigger alerts without generating massive false positives. On Day 4, the alert fires. Thus, at the session level, recall is $1/4 = 25\%$ for that episode, but at the **event level**, the episode is detected with **100.0% reliability**.
+### 6.2 Detailed Breakdown of Anomaly Episodes: Session vs. Event Recall
 
-### 6.2 Supervised Machine Learning Benchmark (Decision Tree)
+To understand why session-level recall is **54.55%** while event-level recall is **100.00%**, we examine every injected anomaly session in the benchmark dataset:
+
+| Class ID | Session Date | Injected Anomaly Type | Roll-Call ($P / E$) | Camera ($W$) | Triggered Rule | Detection Status | Session ID |
+| :--- | :---: | :--- | :---: | :---: | :--- | :---: | :--- |
+| `CLASS-04-A` | 2026-10-16 | `WEBCAM_DISCREPANCY` | $P=27, E=32$ | $W=19$ | `RULE_WEBCAM_DISCREPANCY` | **TP** | `78660765-14f7-4e8d-95bc-b8d04094dded` |
+| `CLASS-02-A` | 2026-10-17 | `REPEATED_HEADCOUNT` (Day 1) | $P=20, E=25$ | $W=20$ | *None (Prefix Day 1)* | **FN** | `610461e3-2a25-4888-8f02-bad0e7067ef4` |
+| `CLASS-02-A` | 2026-10-18 | `REPEATED_HEADCOUNT` (Day 2) | $P=20, E=25$ | $W=21$ | *None (Prefix Day 2)* | **FN** | `f512c4c3-b253-4218-ac4a-37ea490617f2` |
+| `CLASS-02-A` | 2026-10-19 | `REPEATED_HEADCOUNT` (Day 3) | $P=20, E=25$ | $W=19$ | *None (Prefix Day 3)* | **FN** | `27a0c3d7-7c96-4f79-b7e9-9acaa97065e1` |
+| `CLASS-02-A` | 2026-10-20 | `REPEATED_HEADCOUNT` (Day 4) | $P=20, E=25$ | $W=21$ | `RULE_REPEATED_HEADCOUNT` | **TP** | `bc594585-9445-48c0-8ef8-c2d6f7fd5646` |
+| `CLASS-05-A` | 2026-10-20 | `REPEATED_HEADCOUNT` (Day 1) | $P=27, E=32$ | $W=27$ | *None (Prefix Day 1)* | **FN** | `4a8ff810-784c-4f29-9804-02a2b07aa066` |
+| `CLASS-05-A` | 2026-10-21 | `REPEATED_HEADCOUNT` (Day 2) | $P=27, E=32$ | $W=28$ | *None (Prefix Day 2)* | **FN** | `ec856f37-3bc1-4987-aff8-754d1238d630` |
+| `CLASS-05-A` | 2026-10-22 | `REPEATED_HEADCOUNT` (Day 3) | $P=27, E=32$ | $W=26$ | `RULE_REPEATED_HEADCOUNT` | **TP** | `ef04e57d-cdcc-433a-a943-4aa096fc734d` |
+| `CLASS-05-A` | 2026-10-23 | `REPEATED_HEADCOUNT` (Day 4) | $P=27, E=32$ | $W=26$ | `RULE_REPEATED_HEADCOUNT` | **TP** | `26242b40-a5cb-43a2-b98d-1ca68b6870b5` |
+| `CLASS-02-A` | 2026-10-26 | `WEBCAM_DISCREPANCY` | $P=23, E=25$ | $W=17$ | `RULE_WEBCAM_DISCREPANCY` | **TP** | `12922f83-ef8c-485b-807a-30f2edd4253b` |
+| `CLASS-02-A` | 2026-11-03 | `ATTENDANCE_DROP` | $P=9, E=25$ | $W=8$ | `RULE_ATTENDANCE_DROP` | **TP** | `8f9797b0-6d7c-43c9-b4a6-9f3c8d3aed99` |
+
+#### Chronological Breakdown of the Two Multi-Day Episodes
+
+1. **Episode 1 (`EVT-CLASS-02-A-1`):**
+   - **Cohort:** Class `CLASS-02-A`, 4 consecutive days from `2026-10-17` to `2026-10-20` with an identical headcount of $P=20$ ($E=25$).
+   - **Chronological Detection:**
+     - Days 1, 2, and 3 (`2026-10-17`, `2026-10-18`, `2026-10-19`) are pre-threshold prefix accumulation days. Because the rule requires $\ge 4$ consecutive identical days, firing an alert on Day 1, 2, or 3 would cause widespread false alarms whenever attendance is stable for 2–3 days.
+     - On Day 4 (`2026-10-20`), the streak reaches the 4-day threshold. Alert `ALT-3c834b35` fires on session `bc594585-9445-48c0-8ef8-c2d6f7fd5646`.
+   - **Accounting:** 3 False Negatives (prefix days) + 1 True Positive (detected on Day 4).
+   - **Event-Level Status:** **DETECTED** (1 of 1).
+
+2. **Episode 2 (`EVT-CLASS-05-A-2`):**
+   - **Cohort:** Class `CLASS-05-A`, 4 consecutive days from `2026-10-20` to `2026-10-23` with an identical headcount of $P=27$ ($E=32$).
+   - **Chronological Detection:**
+     - Days 1 and 2 (`2026-10-20`, `2026-10-21`) accumulate history (2 FN).
+     - On Day 3 (`2026-10-22`), the rolling detector detects the pattern and fires alert `ALT-43f16219` on session `ef04e57d-cdcc-433a-a943-4aa096fc734d` (TP).
+     - On Day 4 (`2026-10-23`), the continued identical headcount fires alert `ALT-e10b6869` on session `26242b40-a5cb-43a2-b98d-1ca68b6870b5` (TP).
+   - **Accounting:** 2 False Negatives (prefix days) + 2 True Positives.
+   - **Event-Level Status:** **DETECTED** (1 of 1).
+
+3. **Single-Day Injected Anomalies (3 cases):**
+   - `2026-10-16` (`CLASS-04-A`): Camera discrepancy ($|27 - 19| = 8 \ge 5$) $\implies$ **TP** (`78660765-14f7-4e8d-95bc-b8d04094dded`).
+   - `2026-10-26` (`CLASS-02-A`): Camera discrepancy ($|23 - 17| = 6 \ge 5$) $\implies$ **TP** (`12922f83-ef8c-485b-807a-30f2edd4253b`).
+   - `2026-11-03` (`CLASS-02-A`): Attendance drop ($P=9$, drop $>30\%$ below median) $\implies$ **TP** (`8f9797b0-6d7c-43c9-b4a6-9f3c8d3aed99`).
+
+#### Mathematical Reconciliation
+- Total injected anomaly sessions: **11**
+- True Positives (TP): $1 + 2 + 3 = \mathbf{6}$
+- False Negatives (FN): $3 + 2 = \mathbf{5}$ (all pre-threshold prefix sessions)
+- **Session-Level Recall:** $\frac{6}{6 + 5} = \frac{6}{11} \approx \mathbf{54.55\%}$
+- **Event-Level Success Criteria:** A multi-day anomaly sequence is considered successfully detected if at least one alert fires during the sequence, enabling administrative review before the pattern concludes.
+- **Event-Level Recall:** $\frac{2 \text{ detected episodes}}{2 \text{ injected episodes}} = \mathbf{100.00\%}$.
+
+### 6.3 Supervised Machine Learning Benchmark (Decision Tree)
 
 Evaluated on an independent holdout test set (8 training classes with 176 sessions; 4 holdout testing classes with 88 sessions; random seed = 42).
 
@@ -224,67 +331,91 @@ Predicted Negative        1 (FN)            77 (TN)
 
 | Metric | Measured Value | Comparison with Deterministic Rules |
 | :--- | :---: | :--- |
-| **Accuracy** | **92.05%** (81 / 88) | Comparable overall accuracy. |
+| **Accuracy** | **92.05%** (81 / 88) | Comparable overall accuracy across classes. |
 | **Precision** | **40.00%** (4 / 10) | Lower precision due to boundary sensitivity in multi-dimensional space. |
 | **Recall (Sensitivity)** | **80.00%** (4 / 5) | Higher session-level sensitivity to subtle multivariate deviations. |
 | **Specificity** | **92.77%** (77 / 83) | High negative identification rate. |
 | **F1-Score** | **53.33%** | Lower F1-score due to precision trade-off in low prevalence (~5.7%). |
 
-### 6.3 Ethical & Decision Support Framing
-- **Signal, Not Accusation:** In rural schools, sharp attendance drops frequently stem from legitimate external causes: agricultural harvesting, monsoon flooding, seasonal illness, or village festivals. Flagging an anomaly is **decision support for administrative inspection**, never evidence of teacher misconduct or student truancy.
-- **Explainability Requirement:** Black-box neural models or uncalibrated anomaly scores were excluded. Every alert provides: (1) Rule Name, (2) Observed Value, (3) Rolling Baseline, (4) Applied Threshold, and (5) Plain-Language Explanation.
+### 6.4 Ethical & Decision Support Framing
+- **Decision Support, Never Accusation:** In rural schools, sharp attendance drops frequently stem from legitimate external causes: agricultural harvesting, monsoon flooding, seasonal illness, or village festivals. Flagging an anomaly is strictly a **signal for supportive administrative review**, never proof of teacher misconduct or student truancy.
+- **Explainability Requirement:** Black-box neural models and uncalibrated anomaly scores were excluded. Every alert provides: (1) Rule Name, (2) Observed Value, (3) Rolling Baseline, (4) Applied Threshold, and (5) Plain-Language Explanation.
 
 *Reproducible Execution Command:*  
 `python scripts/reproduce_benchmarks.py`
 
 ---
 
-## 7. Performance Benchmarks (Task 5)
+## 7. Performance Benchmarks & Latency Decomposition (Task 5)
 
-End-to-end performance measurements were conducted against the deployed cloud instance and live Neon PostgreSQL in AWS Singapore (`aws-ap-southeast-1`) across 5 repeated iterations.
+End-to-end performance measurements were conducted against the deployed application connected to live Neon PostgreSQL in AWS Singapore (`aws-ap-southeast-1`) across 5 repeated iterations.
 
-### 7.1 Component Latency Decomposition
+### 7.1 Screen Navigation & Execution Latency
 
 ```mermaid
 xychart-beta
-    title "Component Latency Breakdown (Milliseconds)"
-    x-axis ["Network Link (SG)", "Postgres Query (Cold)", "In-Memory Cache (Warm)", "Overview Rerun", "Records Rerun", "Settings Rerun"]
-    y-axis "Latency (ms)" 0 --> 1000
-    bar [422.03, 395.26, 0.24, 343.16, 158.65, 1017.03]
+    title "Screen Warm Navigation Latency (Milliseconds)"
+    x-axis ["Overview", "Records", "Mark Attendance", "Settings", "Needs Attention (Slower)", "Reports & Export (Slower)"]
+    y-axis "Latency (ms)" 0 --> 4000
+    bar [343.16, 158.65, 1034.20, 1017.03, 2000.53, 3684.05]
 ```
 
-| Component / Layer | Cold Start / Uncached | Warm / Cached (p50) | 95th Percentile (p95) | Primary Bottleneck / Optimization |
+| Component / View | Cold Start / Uncached | Warm / Cached (p50) | 95th Percentile (p95) | Primary Architectural Workload |
 | :--- | :---: | :---: | :---: | :--- |
 | **Engine Pool Creation + TLS Handshake** | 3,115.30 ms | **0.003 ms** | 2,606.38 ms | Reused via singleton `@st.cache_resource` pool |
-| **Network Round-Trip Transit (Singapore)** | 662.00 ms | **422.03 ms** | 662.00 ms | Physical distance between client and AWS ap-southeast-1 |
+| **Network Round-Trip Transit (Singapore)** | 662.00 ms | **422.03 ms** | 662.00 ms | Physical distance between client and AWS `ap-southeast-1` |
 | **PostgreSQL Table Query Execution** | 817.29 ms | **0.24 ms** | 348.15 ms | In-memory read cache eliminates repeated round-trips |
-| **Overview Screen Render** | 2,399.79 ms | **343.16 ms** | 362.52 ms | Reads cached session summary and renders 5 KPI cards |
-| **Attendance Records Render** | 2,336.50 ms | **158.65 ms** | 509.88 ms | Pagination and cohort filter table render |
-| **Needs Attention Render** | 2,110.29 ms | **2,000.53 ms** | 2,975.47 ms | Renders alert triage cards and decision support panels |
-| **Reports & Export Render** | 3,684.05 ms | **3,684.05 ms** | 6,901.05 ms | Computes longitudinal aggregations, daily trends, charts |
-| **Settings Render** | 2,867.52 ms | **1,017.03 ms** | 1,265.44 ms | Performs cached DB health ping and storage stats |
+| **Overview Screen** | 2,399.79 ms | **343.16 ms** | 362.52 ms | Reads cached session summary and renders 5 KPI cards |
+| **Attendance Records** | 2,336.50 ms | **158.65 ms** | 509.88 ms | Pagination and cohort filter table render |
+| **Mark Attendance Screen** | 3,450.12 ms | **1,034.20 ms** | 4,141.25 ms | Mounts interactive roll-call inputs, camera component, and validation |
+| **Settings Screen** | 2,867.52 ms | **1,017.03 ms** | 1,265.44 ms | Performs cached DB health ping and storage stats |
+| **Needs Attention Screen (Slower View)** | 2,110.29 ms | **2,000.53 ms** | 2,975.47 ms | Renders expandable alert triage cards, review forms, and audit entries |
+| **Reports & Export Screen (Slower View)** | 3,684.05 ms | **3,684.05 ms** | 6,901.05 ms | Computes longitudinal aggregations, daily trends, charts, CSV buffer |
 | **Cold Application Launch** | **6,554.75 ms** | N/A | N/A | Initial Streamlit runtime loading and bundle parsing |
 | **Login Submission to Dashboard** | **2,022.02 ms** | **1,508.27 ms** | 2,022.02 ms | User authentication and unmounting of login form |
 
-### 7.2 SLA Assessment
-- **Common Navigation SLA ($\le 2.0\text{ seconds}$):** Overview (0.34s), Attendance Records (0.16s), and Settings (1.01s) easily meet the target SLA.
-- **Heavy Analytical Views:** Reports (3.68s) performs complex on-the-fly cross-cohort aggregations, cohort ranking, and chart generation.
-- **Zero Interaction Lag:** In-memory caching ensures button clicks and filter selections respond without renegotiating TLS sockets.
+### 7.2 Detailed Analysis of Slower Screens
+
+The performance audit explicitly identifies two screens that exceed the ideal 2-second warm navigation target:
+
+1. **Needs Attention Screen (~2.00s warm p50 / ~2.98s p95):**
+   - **Root Cause:** Renders dynamic expandable triage cards for each pending alert, constructs detailed HTML/Markdown evidence blocks (observed values, rolling baselines, threshold rationale), populates historical review audit records, and mounts individual form controls (status radio buttons, reviewer notes text areas) for each card.
+   - **Mitigation:** In-memory caching avoids repeated database round-trips, keeping warm execution near 2.00 seconds.
+
+2. **Reports & Export Screen (~3.68s warm p50 / ~6.90s p95):**
+   - **Root Cause:** Performs on-the-fly longitudinal cross-cohort aggregations over all historical sessions, calculates rolling attendance rates, constructs daily trend series, computes cohort rankings, and pre-generates the downloadable CSV buffer via `DataFrame.to_csv().encode('utf-8')`.
+   - **Mitigation:** Aggregations are cached with short TTLs; however, initial calculation and widget reconciliation require ~3.68 seconds.
+
+### 7.3 Multi-Layer Latency Decomposition
+
+To provide complete transparency into what each timing measurement captures, the system latency is decomposed across five distinct architectural layers:
+
+1. **Network Round-Trip Transit (Singapore to India):** **~422 ms p50** (662 ms cold / p95). Measures raw TCP/TLS socket transit between the client in India and Neon's AWS `ap-southeast-1` data center in Singapore.
+2. **Database Query Execution Time:** Cold/first-time table fetch takes **395 ms** (817 ms cold pool init); warm query execution is **< 0.25 ms** when served from the in-memory read cache, and **~12–25 ms** when executing directly on PostgreSQL over an established pool connection.
+3. **Streamlit Python AST Execution:** Measures the time Streamlit requires to execute the view function, evaluate widget state trees, and reconcile the component graph. Averages **~1,372 ms** across all views.
+4. **Export Generation Time:** Specifically within Reports & Export, generating the full CSV byte buffer and preparing the `st.download_button` asset takes an additional **~80–120 ms**.
+5. **Browser DOM Rendering & Paint Time:** Cannot be directly measured via headless `AppTest` because the headless harness runs in Python without an attached Chromium/WebKit layout engine. Based on standard Streamlit frontend profiling, browser DOM reconciliation and paint are estimated at **50–150 ms**; this is explicitly noted as an unmeasured limitation of headless testing harnesses.
+
+### 7.4 Target SLA Assessment
+> [!NOTE]
+> **SLA Finding:** **Not all six screens meet the 2-second navigation target.**
+> - **Screens Meeting Target ($\le 2.0\text{s}$):** Overview (0.34s), Attendance Records (0.16s), Settings (1.02s), and Mark Attendance (1.03s).
+> - **Screens Exceeding Target ($> 2.0\text{s}$):** Needs Attention (2.00s) and Reports & Export (3.68s).
 
 *Reproducible Execution Command:*  
 `python scratch/measure_task5_latencies.py`
 
 ---
 
-## 8. Privacy Assessment & Operational Limitations (Task 6)
+## 8. Privacy Assessment & Operational Safeguards (Task 6)
 
 | Evaluation Dimension | System Characteristic | Privacy & Ethical Safeguards |
 | :--- | :--- | :--- |
 | **Camera Image Persistence** | Zero Disk Retention | Images processed strictly in ephemeral RAM (`io.BytesIO`) and destroyed immediately upon function return. No `.jpg` or `.png` image files are ever stored on disk or uploaded to cloud storage. |
 | **Biometric Extraction** | Strictly Prohibited | No face detection, facial landmarks, FaceNet embeddings, or biometric recognition templates are imported, computed, or retained. |
 | **Data Model Granularity** | Aggregated Cohort Level | The database stores class-level roll calls (`expected_enrollment`, `present_count`, `absent_count`). No student names, roll numbers, photos, Aadhaar numbers, or PII exist in the schema. |
-| **Role-Based Separation** | Two Institutional Tiers | Headmaster (full administrative rights) vs. Teacher (roll-call recording and history view only). |
-| **Backup Encryption** | Independent Storage | Automated backup script (`scripts/cloud_backup.py`) produces timestamped, sanitized database dumps for disaster recovery. |
+| **Role-Based Separation** | Institutional Hierarchy | Headmaster (full administrative rights) vs. Teacher (roll-call recording and history view only). |
+| **Backup Integrity** | Independent Storage | Automated backup script (`scripts/cloud_backup.py`) produces timestamped database dumps for disaster recovery. |
 | **Real vs. Synthetic Separation** | Explicit Labeling | Synthetic testbench generators are strictly segregated from operational records via the `record_source` column (`SYNTHETIC`, `MANUAL_ENTRY`, `CSV_IMPORT`). |
 
 ---
@@ -301,7 +432,7 @@ During academic evaluation, the following operational constraints must be explic
 
 ---
 
-## 10. Reproduction Instructions
+## 10. Independent Reproduction Instructions
 
 To independently reproduce every result, metric, and benchmark documented in this report:
 
@@ -332,5 +463,5 @@ Get-FileHash -Algorithm SHA256 "data/attendsure.db"
 | Evaluation Track | Status | Justification & Evidence |
 | :--- | :---: | :--- |
 | **1. Production Functionality** | **READY** | All 6 screens functional, RBAC security enforced, Neon PostgreSQL integrated with pooled connections, zero silent SQLite fallback, robust invariant validation. |
-| **2. Academic Demonstration Readiness** | **READY** | All 414 test cases passing in ~90s, public cloud deployment active, clean Modern SaaS UI with zero transition ghosting, reproducible benchmarks. |
+| **2. Academic Demonstration Readiness** | **READY** | All 414 test cases passing in ~87s, public cloud deployment active, clean Modern SaaS UI with zero transition ghosting, reproducible benchmarks. |
 | **3. Field / Pilot Validation Readiness** | **REQUIRES PILOT** | While the software is structurally sound, field readiness requires actual deployment in rural schools with physical classroom lighting, local hardware, teacher training, and institutional approval. Synthetic tests validate software correctness, but field validation requires real-world empirical deployment. |
