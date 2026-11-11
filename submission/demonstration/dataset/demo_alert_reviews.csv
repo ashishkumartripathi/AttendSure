@@ -1,0 +1,4 @@
+review_id,alert_id,reviewed_by,review_action,notes,created_at
+REV-f52b9238,ALT-48916b89-31f2-4cb4-8201-c4f3220cad7b,Headmaster (HM-01),RESOLVED,Verified severe localized monsoon rain and overflowing village nallah. Student absenteeism verified as justified environmental factor. No disciplinary action warranted.,2026-11-11T12:38:36.155237+00:00
+REV-9fc13b98,ALT-3c834b35-a06c-4fce-8a48-fc914abfc40c,Block Officer (BEO-North),ACKNOWLEDGED,Flagged for on-site roll-call audit during upcoming Friday block inspection.,2026-11-11T12:38:36.155237+00:00
+REV-6d8555a1,ALT-742d6a0b-62a1-4cd4-b5d8-cc0fda908da9,Teacher (TR-04),DISMISSED,Camera frame was partially occluded by open wooden window frame and morning direct sunlight glare. Physical roll-call manual count 27 verified accurate.,2026-11-11T12:38:36.155237+00:00
