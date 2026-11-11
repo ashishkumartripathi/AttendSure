@@ -117,8 +117,15 @@ def get_database_url() -> str:
     3. Falls back to local SQLite path (ATTENDSURE_DB_PATH or DEFAULT_DB_PATH)
     """
     raw_url = os.environ.get("ATTENDSURE_DATABASE_URL") or os.environ.get("DATABASE_URL")
-    if raw_url and raw_url.strip():
-        url = raw_url.strip()
+    if not raw_url:
+        try:
+            import streamlit as st
+            if hasattr(st, "secrets"):
+                raw_url = st.secrets.get("ATTENDSURE_DATABASE_URL") or st.secrets.get("DATABASE_URL")
+        except Exception:
+            pass
+    if raw_url and str(raw_url).strip():
+        url = str(raw_url).strip()
         # Normalise legacy postgres:// prefix to postgresql:// for SQLAlchemy compatibility
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)

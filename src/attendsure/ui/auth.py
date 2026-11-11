@@ -124,10 +124,26 @@ _DEFAULT_TEACHER_HASH = (
 )
 
 
+def _get_config_value(key: str, default: Optional[str] = None) -> Optional[str]:
+    """Retrieve configuration value from os.environ or Streamlit Cloud Secrets (st.secrets)."""
+    val = os.environ.get(key)
+    if val is not None and str(val).strip():
+        return str(val).strip()
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and key in st.secrets:
+            s_val = st.secrets[key]
+            if s_val is not None and str(s_val).strip():
+                return str(s_val).strip()
+    except Exception:
+        pass
+    return default
+
+
 def get_school_metadata() -> Tuple[str, str]:
-    """Retrieve school identifier and canonical name from environment or defaults."""
-    school_id = os.environ.get("ATTENDSURE_SCHOOL_ID", "RUMV-081204")
-    school_name = os.environ.get(
+    """Retrieve school identifier and canonical name from environment, secrets, or defaults."""
+    school_id = _get_config_value("ATTENDSURE_SCHOOL_ID", "RUMV-081204")
+    school_name = _get_config_value(
         "ATTENDSURE_SCHOOL_NAME",
         "Rajkiya Uchha Madhyamik Vidyalaya",
     )
@@ -135,31 +151,31 @@ def get_school_metadata() -> Tuple[str, str]:
 
 
 def load_user_registry() -> Dict[str, UserAccount]:
-    """Load authorized school users from environment variables or secure defaults."""
+    """Load authorized school users from environment variables, secrets, or secure defaults."""
     school_id, school_name = get_school_metadata()
 
     # Admin / Headmaster credentials
-    admin_user = os.environ.get("ATTENDSURE_ADMIN_USERNAME", "headmaster")
-    admin_pass = os.environ.get("ATTENDSURE_ADMIN_PASSWORD")
+    admin_user = _get_config_value("ATTENDSURE_ADMIN_USERNAME", "headmaster")
+    admin_pass = _get_config_value("ATTENDSURE_ADMIN_PASSWORD")
     if admin_pass:
         admin_hash = hash_password(admin_pass)
     else:
-        admin_hash = os.environ.get("ATTENDSURE_ADMIN_HASH", _DEFAULT_ADMIN_HASH)
+        admin_hash = _get_config_value("ATTENDSURE_ADMIN_HASH", _DEFAULT_ADMIN_HASH)
 
     # Teacher credentials
-    teacher_user = os.environ.get("ATTENDSURE_TEACHER_USERNAME", "teacher")
-    teacher_pass = os.environ.get("ATTENDSURE_TEACHER_PASSWORD")
+    teacher_user = _get_config_value("ATTENDSURE_TEACHER_USERNAME", "teacher")
+    teacher_pass = _get_config_value("ATTENDSURE_TEACHER_PASSWORD")
     if teacher_pass:
         teacher_hash = hash_password(teacher_pass)
     else:
-        teacher_hash = os.environ.get("ATTENDSURE_TEACHER_HASH", _DEFAULT_TEACHER_HASH)
+        teacher_hash = _get_config_value("ATTENDSURE_TEACHER_HASH", _DEFAULT_TEACHER_HASH)
 
     registry: Dict[str, UserAccount] = {
         admin_user: UserAccount(
             username=admin_user,
             password_hash=admin_hash,
             role=ROLE_HEADMASTER,
-            display_name=os.environ.get("ATTENDSURE_ADMIN_NAME", "Sh. R. K. Sharma (Headmaster)"),
+            display_name=_get_config_value("ATTENDSURE_ADMIN_NAME", "Sh. R. K. Sharma (Headmaster)"),
             school_id=school_id,
             school_name=school_name,
             permissions=DEFAULT_PERMISSIONS[ROLE_HEADMASTER],
@@ -168,7 +184,7 @@ def load_user_registry() -> Dict[str, UserAccount]:
             username=teacher_user,
             password_hash=teacher_hash,
             role=ROLE_TEACHER,
-            display_name=os.environ.get("ATTENDSURE_TEACHER_NAME", "Smt. Sunita Verma (Teacher)"),
+            display_name=_get_config_value("ATTENDSURE_TEACHER_NAME", "Smt. Sunita Verma (Teacher)"),
             school_id=school_id,
             school_name=school_name,
             permissions=DEFAULT_PERMISSIONS[ROLE_TEACHER],
@@ -384,25 +400,22 @@ def render_login_screen() -> None:
                 else:
                     st.error(f"Authentication Failed: {err_msg}")
 
-        # Quick Demonstration Access Hint (For SIH Jury & Evaluators)
-        with st.expander("ℹ️  Evaluator / Jury Demonstration Credentials", expanded=False):
-            st.markdown(
-                """
-                For evaluation of the live cloud deployment, authorized demo accounts are pre-configured:
-                
-                - **Headmaster (Full Administrator):**
-                  - Username: `headmaster`
-                  - Password: `Admin@SIH2025!`
-                  - *Access: Mark Attendance, Records, Needs Attention triage, Reports, Settings, Lab.*
-                
-                - **Classroom Teacher (Educator):**
-                  - Username: `teacher`
-                  - Password: `Teacher@SIH2025!`
-                  - *Access: Mark Attendance, Attendance Records, Summary Reports.*
-                
-                *Note: Passwords are protected using salted PBKDF2-HMAC-SHA256 hashes. In production, credentials can be overridden via environment variables `ATTENDSURE_ADMIN_PASSWORD` and `ATTENDSURE_TEACHER_PASSWORD`.*
-                """
-            )
+        # Demonstration Access Guidance (Hidden in Production Mode)
+        is_prod = (
+            os.environ.get("ATTENDSURE_ENVIRONMENT") == "production"
+            or os.environ.get("ATTENDSURE_IS_PRODUCTION") == "1"
+        )
+        if not is_prod:
+            with st.expander("ℹ️  Evaluator Demonstration Guidance", expanded=False):
+                st.markdown(
+                    """
+                    Institutional demonstration roles:
+                    - **Headmaster (Full Administrator):** Username `headmaster`
+                    - **Classroom Teacher (Educator):** Username `teacher`
+                    
+                    *Passwords are hashed with PBKDF2-HMAC-SHA256 (100,000 iterations). In production cloud environments, credentials are set via secure environment secrets.*
+                    """
+                )
 
 
 def render_user_badge_sidebar() -> None:
