@@ -41,6 +41,18 @@ html, body, [data-testid="stAppViewContainer"] {
     padding-left: 2rem !important;
     padding-right: 2rem !important;
     max-width: 1400px !important;
+    animation: fadeInContainer 0.15s ease-in-out;
+}
+
+@keyframes fadeInContainer {
+    from { opacity: 0.88; }
+    to { opacity: 1; }
+}
+
+/* Snappy transitions: eliminate lingering stale elements or opacity ghosting */
+[data-stale="true"] {
+    opacity: 0 !important;
+    transition: opacity 0.12s ease-out !important;
 }
 
 /* Headings with Modern SaaS Accent */

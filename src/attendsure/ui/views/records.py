@@ -17,7 +17,7 @@ import streamlit as st
 
 from attendsure.data.models import Alert
 from attendsure.ui.dev_mode import is_developer_mode
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import get_cached_alerts, get_cached_sessions, get_repository
 
 
 def render_records() -> None:
@@ -27,8 +27,8 @@ def render_records() -> None:
 
     try:
         with get_repository() as repo:
-            all_sessions = repo.get_sessions(as_df=True)
-            alerts = repo.get_alerts()
+            all_sessions = get_cached_sessions(repo)
+            alerts = get_cached_alerts(repo)
     except Exception as exc:
         st.error(f"Unable to access the local attendance database: {exc}")
         return

@@ -213,7 +213,7 @@ def is_postgres_url(url: str) -> bool:
 def create_db_engine(url: Optional[str] = None) -> sa.Engine:
     """Create a configured SQLAlchemy Engine with connection pooling and timeouts."""
     target_url = url if url is not None else get_database_url()
-    
+
     if is_postgres_url(target_url):
         target_url = normalize_postgres_url(target_url)
         # Configure pooling and timeout for cloud PostgreSQL with psycopg v3
@@ -231,6 +231,56 @@ def create_db_engine(url: Optional[str] = None) -> sa.Engine:
             target_url,
             connect_args={"timeout": 15},
         )
+
+
+# Global Engine Cache to reuse connection pools across Streamlit reruns
+_GLOBAL_ENGINE_CACHE: Dict[str, sa.Engine] = {}
+
+
+def get_shared_engine(url: Optional[str] = None) -> sa.Engine:
+    """Retrieve or create a singleton pooled SQLAlchemy Engine per database URL.
+
+    Reuses connection pools across Streamlit reruns and threads, eliminating costly
+    TCP/TLS reconnection and SSL negotiation handshakes on every repository access.
+    """
+    target_url = url if url is not None else get_database_url()
+    if is_postgres_url(target_url):
+        target_url = normalize_postgres_url(target_url)
+
+    if target_url in _GLOBAL_ENGINE_CACHE:
+        return _GLOBAL_ENGINE_CACHE[target_url]
+
+    try:
+        import streamlit as st
+        if hasattr(st, "cache_resource"):
+            @st.cache_resource(show_spinner=False)
+            def _st_cached_engine(u: str) -> sa.Engine:
+                eng = create_db_engine(u)
+                init_relational_schema(eng)
+                return eng
+
+            try:
+                eng = _st_cached_engine(target_url)
+                _GLOBAL_ENGINE_CACHE[target_url] = eng
+                return eng
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    engine = create_db_engine(target_url)
+    init_relational_schema(engine)
+    _GLOBAL_ENGINE_CACHE[target_url] = engine
+    return engine
+
+
+def _trigger_cache_invalidation() -> None:
+    """Safely trigger data cache invalidation when a database write occurs."""
+    try:
+        from attendsure.ui.state import invalidate_data_cache
+        invalidate_data_cache()
+    except Exception:
+        pass
 
 
 def init_relational_schema(engine: sa.Engine) -> None:
@@ -352,14 +402,13 @@ class RelationalRepository:
     def __init__(self, engine_or_url: Optional[Union[str, sa.Engine]] = None) -> None:
         """Initialize relational repository with connection engine."""
         if engine_or_url is None:
-            self._engine: sa.Engine = create_db_engine()
+            self._engine: sa.Engine = get_shared_engine()
         elif isinstance(engine_or_url, str):
-            self._engine = create_db_engine(engine_or_url)
+            self._engine = get_shared_engine(engine_or_url)
         else:
             self._engine = engine_or_url
 
         self._is_closed: bool = False
-        init_relational_schema(self._engine)
 
     @property
     def db_path(self) -> str:
@@ -467,6 +516,7 @@ class RelationalRepository:
                 raise sqlite3.IntegrityError(f"Record with session_id '{rec.session_id}' already exists.")
 
             conn.execute(attendance_sessions_table.insert().values(asdict(rec)))
+        _trigger_cache_invalidation()
         return rec
 
     def save_sessions(
@@ -490,6 +540,7 @@ class RelationalRepository:
                         f"Record for class '{rec.class_id}' on date '{rec.session_date}' already exists."
                     )
                 conn.execute(attendance_sessions_table.insert().values(asdict(rec)))
+        _trigger_cache_invalidation()
         return records
 
     def get_session_by_id(self, session_id: str) -> Optional[SessionRecord]:
@@ -604,6 +655,7 @@ class RelationalRepository:
                 if not exists:
                     conn.execute(alerts_table.insert().values(ad))
 
+        _trigger_cache_invalidation()
         return alert_objs
 
     def get_alert_by_id(self, alert_id: str) -> Optional[Alert]:
@@ -678,7 +730,10 @@ class RelationalRepository:
             res = conn.execute(
                 sa.update(alerts_table).where(alerts_table.c.alert_id == alert_id).values(review_status=new_status)
             )
-            return bool(res.rowcount > 0)
+            success = bool(res.rowcount > 0)
+        if success:
+            _trigger_cache_invalidation()
+        return success
 
     def add_alert_review(
         self,
@@ -710,7 +765,8 @@ class RelationalRepository:
                     reviewed_at=ts,
                 )
             )
-            return True
+        _trigger_cache_invalidation()
+        return True
 
     def get_alert_reviews(self, alert_id: str) -> list[dict]:
         """Fetch all historical review decisions and notes for an alert."""
@@ -752,5 +808,6 @@ class RelationalRepository:
                 if not exists:
                     conn.execute(alerts_table.insert().values(ad))
 
+        _trigger_cache_invalidation()
         return session_records, alert_objs
 

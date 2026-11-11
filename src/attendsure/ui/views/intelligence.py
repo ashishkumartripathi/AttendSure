@@ -32,7 +32,7 @@ from attendsure.services.attendance_service import (
     run_full_detection_pipeline,
     update_alert_status,
 )
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import get_cached_alerts, get_repository, invalidate_data_cache
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.views.alert_card import render_teacher_alert_card
 
@@ -44,7 +44,7 @@ def render_intelligence() -> None:
 
     try:
         with get_repository() as repo:
-            all_alerts: list[Alert] = repo.get_alerts()
+            all_alerts: list[Alert] = get_cached_alerts(repo)
     except Exception as exc:
         st.error(f"Unable to access the local attendance database: {exc}")
         st.info("Please verify database file permissions and path configuration.")
@@ -64,6 +64,7 @@ def render_intelligence() -> None:
         try:
             with get_repository() as repo:
                 generated = run_full_detection_pipeline(repo)
+            invalidate_data_cache()
             st.session_state["scan_outcome"] = {
                 "status": "success",
                 "count": len(generated),

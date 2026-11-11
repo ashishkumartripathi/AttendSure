@@ -26,7 +26,7 @@ from attendsure.services.attendance_service import (
     validate_manual_session,
 )
 from attendsure.ui.dev_mode import is_developer_mode
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import get_cached_sessions, get_repository
 from attendsure.ui.theme import render_page_header
 
 
@@ -423,7 +423,7 @@ def _render_historical_register() -> None:
 
     try:
         with get_repository() as repo:
-            all_sessions = repo.get_sessions(as_df=True)
+            all_sessions = get_cached_sessions(repo)
     except Exception as exc:
         st.error(f"Unable to access the local attendance database: {exc}")
         return

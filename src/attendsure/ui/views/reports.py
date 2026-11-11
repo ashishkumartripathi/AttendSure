@@ -25,7 +25,12 @@ from attendsure.services.attendance_service import (
     preview_csv_import,
 )
 from attendsure.ui.dev_mode import is_developer_mode
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import (
+    get_cached_alerts,
+    get_cached_sessions,
+    get_repository,
+    invalidate_data_cache,
+)
 from attendsure.ui.views.laboratory import render_laboratory
 
 
@@ -71,7 +76,7 @@ def _render_attendance_summaries() -> None:
     st.caption("Class-wise performance, daily attendance, and classes with low attendance.")
 
     with get_repository() as repo:
-        sessions_df = repo.get_sessions(as_df=True)
+        sessions_df = get_cached_sessions(repo)
 
     if sessions_df.empty:
         st.info("No attendance records found to summarize.")
@@ -220,7 +225,7 @@ def _render_sessions_export() -> None:
     )
 
     with get_repository() as repo:
-        all_sessions_df = repo.get_sessions(as_df=True)
+        all_sessions_df = get_cached_sessions(repo)
 
     # Extract distinct cohorts for dropdown
     distinct_cohorts = ["All Classes"]
@@ -610,6 +615,7 @@ def _render_csv_ingestion() -> None:
                     allow_partial=allow_partial,
                 )
 
+            invalidate_data_cache()
             st.session_state["reports_csv_commit_res"] = commit_result
             st.session_state.pop("reports_csv_preview_res", None)
             st.session_state.pop("reports_csv_preview_err", None)

@@ -49,7 +49,9 @@ def main() -> None:
     # Authentication & Institutional Gate
     # -------------------------------------------------------------------------
     if is_auth_required() and not is_authenticated():
-        render_login_screen()
+        login_container = st.empty()
+        with login_container.container():
+            render_login_screen()
         return
     # -------------------------------------------------------------------------
     # Sidebar Header & Brand Identity (Modern SaaS Direction)

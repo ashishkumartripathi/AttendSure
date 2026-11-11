@@ -283,6 +283,12 @@ def login(username: str, password: str) -> Tuple[bool, str]:
 
 def logout() -> None:
     """Terminate the active session, clear credentials, and reset navigation."""
+    try:
+        from attendsure.ui.state import invalidate_data_cache
+        invalidate_data_cache()
+    except Exception:
+        pass
+
     if SESSION_KEY_USER in st.session_state:
         del st.session_state[SESSION_KEY_USER]
     if SESSION_KEY_TOKEN in st.session_state:
@@ -395,7 +401,6 @@ def render_login_screen() -> None:
             if submit_login:
                 ok, err_msg = login(username_input, password_input)
                 if ok:
-                    st.success("Authentication confirmed. Loading school dashboard...")
                     st.rerun()
                 else:
                     st.error(f"Authentication Failed: {err_msg}")

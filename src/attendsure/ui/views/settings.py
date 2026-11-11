@@ -16,6 +16,8 @@ from attendsure.data.storage import DEFAULT_DB_PATH
 from attendsure.ui.dev_mode import is_developer_mode, set_developer_mode
 from attendsure.ui.state import (
     get_active_database_metadata,
+    get_cached_alerts,
+    get_cached_sessions,
     get_configured_db_path,
     get_repository,
     test_db_connection,
@@ -203,7 +205,8 @@ def _render_storage_diagnostics() -> None:
         path_type_badge = "<span class='badge badge-neutral'>Standard Local File</span>"
 
     # Test database connectivity
-    is_healthy, db_error = test_db_connection()
+    force_check = bool(st.session_state.get("btn_recheck_db"))
+    is_healthy, db_error = test_db_connection(force=force_check)
 
     if is_healthy:
         st.success("✅ **Database Connection Healthy:** System is ready and working normally.")
@@ -244,22 +247,14 @@ def _render_repository_metrics() -> None:
 
     try:
         with get_repository() as repo:
-            sessions_df = repo.get_sessions(as_df=True)
-            alerts_df = repo.get_alerts(as_df=True)
+            sessions_df = get_cached_sessions(repo)
+            alerts = get_cached_alerts(repo)
 
         total_sessions = len(sessions_df)
-        total_alerts = len(alerts_df)
+        total_alerts = len(alerts)
 
-        pending_alerts = (
-            int((alerts_df["review_status"] == "PENDING_REVIEW").sum())
-            if not alerts_df.empty and "review_status" in alerts_df.columns
-            else 0
-        )
-        resolved_alerts = (
-            int((alerts_df["review_status"] == "RESOLVED").sum())
-            if not alerts_df.empty and "review_status" in alerts_df.columns
-            else 0
-        )
+        pending_alerts = len([a for a in alerts if a.review_status == "PENDING_REVIEW"])
+        resolved_alerts = len([a for a in alerts if a.review_status == "RESOLVED"])
 
         # Overview Metrics Strip
         k1, k2, k3, k4 = st.columns(4)

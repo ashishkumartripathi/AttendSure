@@ -163,6 +163,15 @@ REQUIRED_ALERT_FIELDS = (
 )
 
 
+def _trigger_cache_invalidation() -> None:
+    """Safely trigger data cache invalidation when a database write occurs."""
+    try:
+        from attendsure.ui.state import invalidate_data_cache
+        invalidate_data_cache()
+    except Exception:
+        pass
+
+
 class AttendanceRepository:
     """SQLite repository for attendance sessions and explainable alerts.
 
@@ -395,6 +404,7 @@ class AttendanceRepository:
         conn = self.get_connection()
         with conn:
             self._insert_session_records(conn, [record])
+        _trigger_cache_invalidation()
         return record
 
     def save_sessions(
@@ -423,6 +433,7 @@ class AttendanceRepository:
         conn = self.get_connection()
         with conn:
             self._insert_session_records(conn, records)
+        _trigger_cache_invalidation()
         return records
 
     def get_session_by_id(self, session_id: str) -> Optional[SessionRecord]:
@@ -732,6 +743,7 @@ class AttendanceRepository:
         self._verify_alert_session_consistency(conn, alert_objs)
         with conn:
             self._insert_alert_records(conn, params)
+        _trigger_cache_invalidation()
         return alert_objs
 
     def get_alert_by_id(self, alert_id: str) -> Optional[Alert]:
@@ -877,7 +889,10 @@ class AttendanceRepository:
         sql = "UPDATE alerts SET review_status = ? WHERE alert_id = ?"
         with conn:
             cur = conn.execute(sql, (new_status, alert_id))
-            return cur.rowcount > 0
+            success = cur.rowcount > 0
+        if success:
+            _trigger_cache_invalidation()
+        return success
 
     def add_alert_review(
         self,
@@ -919,7 +934,8 @@ class AttendanceRepository:
                 "INSERT INTO alert_reviews (review_id, alert_id, new_status, notes, reviewed_at) VALUES (?, ?, ?, ?, ?)",
                 (review_id, alert_id, new_status, notes.strip() if notes else None, ts),
             )
-            return True
+        _trigger_cache_invalidation()
+        return True
 
     def get_alert_reviews(self, alert_id: str) -> list[dict]:
         """Fetch all historical review decisions and notes for an alert.
@@ -985,4 +1001,5 @@ class AttendanceRepository:
             if alert_params:
                 self._insert_alert_records(conn, alert_params)
 
+        _trigger_cache_invalidation()
         return session_records, alert_objs
