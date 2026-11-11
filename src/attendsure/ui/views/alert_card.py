@@ -215,6 +215,20 @@ def render_teacher_alert_card(
         # 7. Brief Reassurance
         st.caption(f"ℹ️ {data['reassurance']}")
 
+        # Fetch past review history & notes
+        try:
+            with get_repository() as repo:
+                past_reviews = repo.get_alert_reviews(alert.alert_id)
+        except Exception:
+            past_reviews = []
+
+        if past_reviews:
+            st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 8px 0;' />", unsafe_allow_html=True)
+            st.markdown("**Review History & Notes:**")
+            for r in past_reviews:
+                notes_str = f" — *\"{r['notes']}\"*" if r.get("notes") else ""
+                st.caption(f"• **{r['new_status']}** at {r['reviewed_at'][:16].replace('T', ' ')}{notes_str}")
+
     # 8. Action Buttons
     if allow_status_update:
         col_rev, col_chk = st.columns([1, 1])
@@ -241,4 +255,35 @@ def render_teacher_alert_card(
                 "3. Check for students participating in school activities, field trips, or late arrivals.\n"
                 "4. When verified, click 'Mark as Checked' above to resolve this record."
             )
+
+        with st.expander("📝 Update Status & Add Review Notes", expanded=False):
+            st.caption("Change the alert triage status and record explanatory notes for administrative audit.")
+            status_opts = ["PENDING_REVIEW", "ACKNOWLEDGED", "RESOLVED", "DISMISSED"]
+            status_labels = {
+                "PENDING_REVIEW": "Needs Attention (Pending)",
+                "ACKNOWLEDGED": "Acknowledged (Seen)",
+                "RESOLVED": "Resolved (Verified / Checked)",
+                "DISMISSED": "Dismissed (Benign Cause)",
+            }
+            cur_idx = status_opts.index(alert.review_status) if alert.review_status in status_opts else 0
+            new_st = st.selectbox(
+                "Review Determination",
+                options=status_opts,
+                index=cur_idx,
+                format_func=lambda s: status_labels.get(s, s),
+                key=f"{key_prefix}sel_status_{alert.alert_id}",
+            )
+            notes_text = st.text_area(
+                "Reviewer Notes",
+                placeholder="e.g., Verified with class teacher: 7 students absent due to local road waterlogging.",
+                key=f"{key_prefix}txt_notes_{alert.alert_id}",
+            )
+            if st.button("💾 Save Review Decision", key=f"{key_prefix}btn_save_review_{alert.alert_id}"):
+                try:
+                    with get_repository() as repo:
+                        update_alert_status(repo, alert.alert_id, new_st, notes=notes_text.strip() if notes_text else None, raise_if_missing=True)
+                    st.success(f"Review decision saved: {status_labels.get(new_st, new_st)}")
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"Error saving review decision: {exc}")
 

@@ -211,14 +211,16 @@ def update_alert_status(
     repo: AttendanceRepository,
     alert_id: str,
     new_status: str,
+    notes: Optional[str] = None,
     raise_if_missing: bool = False,
 ) -> bool:
-    """Update an alert's review status using the repository.
+    """Update an alert's review status using the repository, optionally saving reviewer notes.
 
     Args:
         repo: Active AttendanceRepository instance.
         alert_id: Unique alert identifier.
         new_status: Target status (PENDING_REVIEW, ACKNOWLEDGED, RESOLVED, DISMISSED).
+        notes: Optional explanatory notes from the educator/reviewer.
         raise_if_missing: If True, raises KeyError when alert_id is not found;
             if False, returns False.
 
@@ -229,7 +231,11 @@ def update_alert_status(
         ValueError: If new_status is not an approved ReviewStatus value.
         KeyError: If raise_if_missing is True and alert_id does not exist.
     """
-    updated = repo.update_alert_review_status(alert_id, new_status)
+    if notes:
+        updated = repo.add_alert_review(alert_id, new_status, notes=notes)
+    else:
+        updated = repo.update_alert_review_status(alert_id, new_status)
+
     if not updated and raise_if_missing:
         raise KeyError(f"Alert '{alert_id}' does not exist in storage.")
     return updated

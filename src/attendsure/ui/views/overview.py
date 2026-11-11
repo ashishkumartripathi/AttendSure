@@ -4,6 +4,7 @@ Presents teacher-ready attendance metrics, quick actions to mark roll calls,
 a simple attendance trend, recent roll call activity, and plain-English alerts.
 Designed for non-technical schoolteachers following the principle:
 Hide technical complexity. Show useful outcomes.
+Refined with the Modern SaaS design language (Deep Navy, Teal, Neutral Slate, Amber).
 """
 
 from datetime import datetime
@@ -17,31 +18,32 @@ import streamlit as st
 from attendsure.data.models import Alert
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.state import get_configured_db_path, get_repository
+from attendsure.ui.theme import render_decision_support_box
 
 
 def render_overview() -> None:
     """Render the primary teacher-ready Home screen."""
     # -------------------------------------------------------------------------
-    # Header: Clean Title and School Profile
+    # Header: Clean Title and School Profile (Modern SaaS Hierarchy)
     # -------------------------------------------------------------------------
     head_left, head_right = st.columns([3, 2])
     with head_left:
         st.header("Home")
         st.caption("Daily school attendance overview, roll call progress, and review reminders.")
     with head_right:
-        header_pills = """<div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 4px;">
-<div style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #FFFFFF; border: 1px solid #E5EAE1; border-radius: 20px; font-size: 0.82rem; color: #172F25; font-weight: 500; box-shadow: 0 1px 3px rgba(23, 74, 50, 0.02);">
-<span>📅</span>
-<span>Today</span>
-</div>
-<div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; background: #FFFFFF; border: 1px solid #E5EAE1; border-radius: 20px; box-shadow: 0 1px 3px rgba(23, 74, 50, 0.02);">
-<div style="width: 26px; height: 26px; border-radius: 50%; background-color: #237A50; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700;">🏫</div>
-<div style="text-align: left; line-height: 1.15;">
-<div style="font-size: 0.78rem; font-weight: 600; color: #172F25;">Govt. Primary School</div>
-<div style="font-size: 0.66rem; color: #77837A;">Teacher Edition</div>
-</div>
-</div>
-</div>"""
+        header_pills = """
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap;">
+            <div class="saas-header-pill">
+                <span>📅</span>
+                <span>Today</span>
+            </div>
+            <div class="saas-header-pill">
+                <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background-color: #0D9488;"></span>
+                <span style="font-weight: 600; color: #0F172A;">Govt. Primary School</span>
+                <span style="color: #64748B; font-size: 0.74rem;">Teacher Edition</span>
+            </div>
+        </div>
+        """
         st.markdown(header_pills, unsafe_allow_html=True)
 
     try:
@@ -54,18 +56,30 @@ def render_overview() -> None:
         return
 
     # -------------------------------------------------------------------------
-    # 1. Primary Action: Mark Today's Attendance Banner
+    # 1. Primary Action: Mark Today's Attendance Banner (Modern SaaS CTA)
     # -------------------------------------------------------------------------
-    col_act_left, col_act_right = st.columns([3, 1])
+    col_act_left, col_act_right = st.columns([3.3, 1.4])
     with col_act_left:
-        st.info("📝 **Ready to mark today's attendance?** Quickly record present and absent students for any class in under a minute.")
+        st.markdown(
+            """
+            <div class="saas-action-banner">
+                <span class="saas-action-banner-icon">📝</span>
+                <div>
+                    <div class="saas-action-banner-title">Ready to mark today's attendance?</div>
+                    <div class="saas-action-banner-desc">Quickly record present and absent students for any class in under a minute.</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     with col_act_right:
+        st.markdown("<div style='height: 3px;'></div>", unsafe_allow_html=True)
         if st.button("📝 Mark Today's Attendance", type="primary", use_container_width=True, key="home_btn_mark_today"):
             st.session_state["nav_target"] = "Mark Attendance"
             st.rerun()
 
     # -------------------------------------------------------------------------
-    # 2. Key Answers: Teacher Immediate Questions (5 Cards in 1 Row)
+    # 2. Key Answers: Teacher Immediate Questions (Responsive 5 KPI Cards)
     # -------------------------------------------------------------------------
     total_sessions = len(sessions_df) if not sessions_df.empty else 0
     total_cohorts = sessions_df["class_id"].nunique() if not sessions_df.empty else 0
@@ -86,9 +100,10 @@ def render_overview() -> None:
     pending_alerts = [a for a in alerts if a.review_status == "PENDING_REVIEW"]
     pending_count = len(pending_alerts)
 
-    st.markdown("<div style='margin-top: 0.5rem; margin-bottom: 0.5rem;'>", unsafe_allow_html=True)
+    # Responsive metrics wrapper prevents awkward wrapping or label truncation on tablet/mobile
+    st.markdown("<div class='overview-metrics-wrapper'>", unsafe_allow_html=True)
     m1, m2, m3, m4, m5 = st.columns(5)
-    # Primary teacher questions
+    # Primary teacher questions with consistent labels matching test assertions
     m1.metric(label="Total Students", value=total_enrollment if total_enrollment > 0 else 0)
     m2.metric(label="Present Today", value=total_present if total_sessions > 0 else 0)
     m3.metric(label="Absent Today", value=total_absent if total_sessions > 0 else 0)
@@ -123,7 +138,7 @@ def render_overview() -> None:
         )
     else:
         # ---------------------------------------------------------------------
-        # 4. Small, Simple Longitudinal Attendance Trend Card
+        # 4. Small, Simple Longitudinal Attendance Trend Card (Modern Teal Palette)
         # ---------------------------------------------------------------------
         daily_summary = (
             sessions_df.groupby("session_date")[["present_count", "expected_enrollment"]]
@@ -142,10 +157,10 @@ def render_overview() -> None:
             chart_card_header = """<div class="attendsure-card-chart">
 <div class="card-header-row">
 <div class="card-header-left">
-<div class="card-header-icon">📈</div>
+<div class="card-header-icon" style="background-color: #CCFBF1; border-color: #99F6E4; color: #0F766E;">📈</div>
 <div>
 <h3 class="card-header-title">Daily Attendance Trend</h3>
-<p class="card-header-sub">Daily attendance percentage across all classes.</p>
+<p class="card-header-sub">Longitudinal schoolwide attendance percentage over time.</p>
 </div>
 </div>
 </div>"""
@@ -157,9 +172,9 @@ def render_overview() -> None:
                     title="Date",
                     axis=alt.Axis(
                         labelAngle=0,
-                        labelColor="#77837A",
-                        tickColor="#E5EAE1",
-                        domainColor="#E5EAE1",
+                        labelColor="#64748B",
+                        tickColor="#CBD5E1",
+                        domainColor="#CBD5E1",
                         labelFontSize=11,
                     ),
                 ),
@@ -169,21 +184,27 @@ def render_overview() -> None:
                     scale=alt.Scale(domain=[0, 100], clamp=True),
                     axis=alt.Axis(
                         tickCount=6,
-                        labelColor="#77837A",
-                        titleColor="#77837A",
-                        gridColor="#F0F3EA",
-                        domainColor="#E5EAE1",
+                        labelColor="#64748B",
+                        titleColor="#475569",
+                        gridColor="#F1F5F9",
+                        domainColor="#CBD5E1",
                         labelFontSize=11,
                     ),
                 ),
+                tooltip=[
+                    alt.Tooltip("session_date:N", title="Date"),
+                    alt.Tooltip("Attendance Rate (%):Q", title="Attendance Rate", format=".1f"),
+                    alt.Tooltip("present_count:Q", title="Students Present"),
+                    alt.Tooltip("expected_enrollment:Q", title="Total Enrolled"),
+                ],
             )
 
             area = base.mark_area(
                 color=alt.Gradient(
                     gradient="linear",
                     stops=[
-                        alt.GradientStop(color="rgba(220, 235, 216, 0.45)", offset=0),
-                        alt.GradientStop(color="rgba(220, 235, 216, 0.05)", offset=1),
+                        alt.GradientStop(color="rgba(13, 148, 136, 0.28)", offset=0),
+                        alt.GradientStop(color="rgba(13, 148, 136, 0.02)", offset=1),
                     ],
                     x1=1,
                     x2=1,
@@ -192,12 +213,12 @@ def render_overview() -> None:
                 )
             )
 
-            line = base.mark_line(color="#237A50", strokeWidth=2.2)
+            line = base.mark_line(color="#0D9488", strokeWidth=2.4)
 
             points = base.mark_point(
                 filled=True,
-                fill="#DCEBD8",
-                stroke="#237A50",
+                fill="#CCFBF1",
+                stroke="#0D9488",
                 strokeWidth=2,
                 size=55,
             )
@@ -212,7 +233,7 @@ def render_overview() -> None:
             st.markdown("</div>", unsafe_allow_html=True)
 
         # ---------------------------------------------------------------------
-        # 5. Recent Attendance Activity Card
+        # 5. Recent Attendance Activity Card (Modern SaaS Table)
         # ---------------------------------------------------------------------
         recent = sessions_df.sort_values(by="session_date", ascending=False).head(10).copy()
         recent["attendance_rate_val"] = (
@@ -234,6 +255,7 @@ def render_overview() -> None:
             rate_val = float(r["attendance_rate_val"])
             rate_badge_class = "rate-badge-drop" if rate_val < 75.0 else "rate-badge-normal"
             sig_count = alerts_per_session.get(str(r["session_id"]), 0)
+            alerts_cell = f'<span class="badge badge-review">⚠️ {sig_count}</span>' if sig_count > 0 else '<span style="color: #64748B;">0</span>'
 
             row_html = (
                 f'<tr>'
@@ -243,7 +265,7 @@ def render_overview() -> None:
                 f'<td>{pres}</td>'
                 f'<td>{abse}</td>'
                 f'<td><span class="{rate_badge_class}">{rate_val:.1f}%</span></td>'
-                f'<td>{sig_count}</td>'
+                f'<td>{alerts_cell}</td>'
                 f'</tr>'
             )
             table_rows_html.append(row_html)
@@ -254,7 +276,7 @@ def render_overview() -> None:
             '<div class="attendsure-card-table">'
             '<div class="card-header-row">'
             '<div class="card-header-left">'
-            '<div class="card-header-icon">📋</div>'
+            '<div class="card-header-icon" style="background-color: #F1F5F9; color: #0F172A;">📋</div>'
             '<div>'
             '<h3 class="card-header-title">Recent Attendance Activity</h3>'
             '<p class="card-header-sub">Latest attendance counts recorded for each class.</p>'
@@ -307,16 +329,16 @@ def render_overview() -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # 6. Important Alerts If Any
+    # 6. Important Alerts If Any (Modern SaaS Alert Cards)
     # -------------------------------------------------------------------------
     if pending_alerts:
         st.markdown(
             """
             <div style="margin-top: 1.5rem; margin-bottom: 0.5rem;">
-                <h3 style="font-size: 1.15rem; font-weight: 700; color: #172F25; margin: 0;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: #0F172A; margin: 0;">
                     ⚠️ Attendance Records Needing Check
                 </h3>
-                <p style="font-size: 0.82rem; color: #77837A; margin: 2px 0 10px 0;">
+                <p style="font-size: 0.82rem; color: #64748B; margin: 2px 0 10px 0;">
                     These attendance records differ from normal patterns. Please verify them with the class teacher.
                 </p>
             </div>
@@ -349,12 +371,11 @@ def render_overview() -> None:
     # 7. Core Non-Accusatory Decision Support Notice
     # -------------------------------------------------------------------------
     st.markdown(
-        """
-        <div class="decision-support-box">
-            <strong>Decision Support Notice:</strong> This system highlights unusual attendance patterns so
-            teachers and administrators can check them. Alerts are not proof of wrongdoing—they are simply
-            reminders to double-check the numbers.
-        </div>
-        """,
+        render_decision_support_box(
+            "This system highlights unusual attendance patterns so teachers and administrators "
+            "can check them. Alerts are not proof of wrongdoing—they are simply reminders to "
+            "double-check the numbers.",
+            title="Decision Support Notice:",
+        ),
         unsafe_allow_html=True,
     )

@@ -14,8 +14,10 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+from attendsure.data.camera_quality import validate_image_quality
 from attendsure.data.csv_io import CsvImportResult, import_sessions_from_csv
 from attendsure.data.models import WebcamCounterResult
+from attendsure.data.person_estimator import estimate_classroom_occupancy
 from attendsure.data.webcam import get_simulated_webcam_count
 from attendsure.data.webcam_capture import create_webcam_capture_event
 from attendsure.ml.predictor import evaluate_session_ml
@@ -25,12 +27,13 @@ from attendsure.services.attendance_service import (
 )
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.state import get_repository
+from attendsure.ui.theme import render_page_header
 
 
 def render_register() -> None:
     """Render the primary Attendance screen."""
     st.header("Mark Attendance")
-    st.caption("Record how many students attended class today with optional visual confirmation.")
+    st.caption("Daily classroom roll call, camera headcount verification, and batch CSV ingestion.")
 
     tab_entry, tab_history, tab_csv = st.tabs(
         [
@@ -168,20 +171,67 @@ def _render_roll_call_entry() -> None:
     st.caption("Take a classroom photo if you want to keep a visual record. Confirm the student count yourself.")
 
     camera_photo = st.camera_input("Take classroom verification photo", key="camera_input_photo")
+    teacher_photo_confirmed = None
     if camera_photo is not None:
-        st.image(camera_photo, width=280, caption="Classroom verification photo (in-memory only, no student photos saved)")
+        photo_bytes = camera_photo.getvalue()
+        q_res = validate_image_quality(photo_bytes)
+
+        col_img, col_metrics = st.columns([1, 1])
+        with col_img:
+            st.image(camera_photo, width=300, caption="Classroom verification photo (in-memory only, no student photos saved)")
+
+        with col_metrics:
+            if q_res.quality_status == "GOOD":
+                st.success(f"🟢 **Image Quality Acceptable** ({q_res.width}×{q_res.height})")
+            else:
+                st.warning(f"⚠️ **Image Quality Notice ({q_res.quality_status})**\n\n{q_res.diagnostic_message}")
+
+            # Run person estimation
+            est_res = estimate_classroom_occupancy(
+                photo_bytes,
+                quality_result=q_res,
+                expected_enrollment=int(expected_enrollment),
+            )
+            if est_res.estimated_count is not None:
+                conf_pct = int((est_res.confidence_score or 0.8) * 100)
+                st.info(f"📷 **Automated Count Estimate:** ~**{est_res.estimated_count}** students (Confidence: {conf_pct}%)\n\n*{est_res.explanation}*")
+            else:
+                st.info(f"📷 **Automated Count:** Unavailable\n\n*{est_res.explanation}*")
+
+        # Explicit Teacher Confirmation Input
+        default_confirm = est_res.estimated_count if est_res.estimated_count is not None else int(present_count)
+        default_confirm = max(0, min(int(expected_enrollment), default_confirm))
+        teacher_photo_confirmed = st.number_input(
+            "Confirmed Physical Headcount from Classroom Photo",
+            min_value=0,
+            max_value=int(expected_enrollment),
+            value=default_confirm,
+            key="teacher_photo_confirmed_headcount",
+            help="Teacher inspects the classroom photo and verifies the physical student count.",
+        )
+
         try:
             create_webcam_capture_event(
                 class_id=str(class_id),
                 session_date=str(session_date),
                 status="SUCCESS",
-                confirmed_headcount=int(present_count),
-                image_bytes=camera_photo.getvalue(),
+                confirmed_headcount=int(teacher_photo_confirmed),
+                image_bytes=photo_bytes,
                 expected_enrollment=int(expected_enrollment),
             )
-            st.info(f"Visual Confirmation: Headcount confirmed by teacher ({present_count} students present).")
         except Exception as exc:
             st.caption(f"Photo note: {exc}")
+
+        # Check discrepancy between manual roll call and teacher confirmed camera count
+        cam_diff = abs(int(present_count) - int(teacher_photo_confirmed))
+        cam_rel = (cam_diff / max(1, int(present_count))) * 100.0
+        if cam_diff >= 5 and cam_rel >= 20.0:
+            st.warning(
+                f"⚠️ **Headcount Difference Detected:** Roll-call ({present_count}) differs from confirmed camera count ({teacher_photo_confirmed}) "
+                f"by {cam_diff} students ({cam_rel:.1f}%). This will generate a review signal upon saving."
+            )
+        else:
+            st.success(f"✅ Headcount verified: {teacher_photo_confirmed} students confirmed present.")
 
     # Background decision tree inference (executed cleanly without cluttering teacher UI)
     ml_eval_result = None
@@ -287,7 +337,12 @@ def _render_roll_call_entry() -> None:
             wb_count = webcam_result.estimated_count
         elif camera_photo is not None:
             wb_status = "SUCCESS"
-            wb_count = pres
+            if "teacher_photo_confirmed_headcount" in st.session_state:
+                wb_count = int(st.session_state["teacher_photo_confirmed_headcount"])
+            elif teacher_photo_confirmed is not None:
+                wb_count = int(teacher_photo_confirmed)
+            else:
+                wb_count = pres
         else:
             wb_status = "NOT_ATTEMPTED"
             wb_count = None

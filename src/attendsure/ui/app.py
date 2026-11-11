@@ -18,9 +18,17 @@ st.set_page_config(
     page_title="Rural School Attendance Integrity and Intervention Decision System",
     page_icon="🎓",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
+from attendsure.ui.auth import (
+    has_permission,
+    is_auth_required,
+    is_authenticated,
+    render_access_denied_card,
+    render_login_screen,
+    render_user_badge_sidebar,
+)
 from attendsure.ui.state import get_configured_db_path, test_db_connection
 from attendsure.ui.styles import apply_theme
 from attendsure.ui.views.intelligence import render_intelligence
@@ -38,39 +46,45 @@ apply_theme()
 def main() -> None:
     """Main application navigation router and shell layout."""
     # -------------------------------------------------------------------------
-    # Sidebar Header & Brand Identity (Matching Reference)
+    # Authentication & Institutional Gate
+    # -------------------------------------------------------------------------
+    if is_auth_required() and not is_authenticated():
+        render_login_screen()
+        return
+    # -------------------------------------------------------------------------
+    # Sidebar Header & Brand Identity (Modern SaaS Direction)
     # -------------------------------------------------------------------------
     st.sidebar.markdown(
         """
         <div style="padding-bottom: 2px;">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
                 <div style="
                     width: 36px;
                     height: 36px;
-                    background-color: #EAF2E6;
-                    border: 1px solid #DCEBD8;
-                    border-radius: 10px;
+                    background-color: #0F172A;
+                    border-radius: 8px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 1.30rem;
+                    font-size: 1.25rem;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+                    flex-shrink: 0;
                 ">
                     🎓
                 </div>
                 <div>
-                    <span style="font-size: 1.18rem; font-weight: 700; color: #174A32; letter-spacing: -0.02em; line-height: 1.15;">
-                        Rural School
-                    </span>
-                    <br>
-                    <span style="font-size: 0.88rem; font-weight: 600; color: #237A50; letter-spacing: -0.01em;">
-                        Attendance System
-                    </span>
+                    <div style="font-size: 0.94rem; font-weight: 700; color: #0F172A; letter-spacing: -0.02em; line-height: 1.2;">
+                        Rural School Attendance
+                    </div>
+                    <div style="font-size: 0.74rem; font-weight: 600; color: #0D9488; letter-spacing: -0.01em;">
+                        Integrity & Intervention Decision System
+                    </div>
                 </div>
             </div>
-            <p style="margin: 4px 0 12px 0; font-size: 0.73rem; color: #77837A; font-weight: 500; line-height: 1.3;">
-                Attendance Integrity and Intervention Decision System
+            <p style="margin: 4px 0 12px 0; font-size: 0.70rem; color: #64748B; font-weight: 500; line-height: 1.35;">
+                SIH25012 • Automated Attendance System for Rural Schools
             </p>
-            <hr style="border: none; border-top: 1px solid #E5EAE1; margin: 0 0 14px 0;" />
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 0 0 14px 0;" />
         </div>
         """,
         unsafe_allow_html=True,
@@ -106,6 +120,10 @@ def main() -> None:
         st.session_state["main_nav_radio"] = st.session_state["nav_target"]
         del st.session_state["nav_target"]
 
+    # Render authenticated user status badge in the sidebar if auth is active
+    if is_auth_required() and is_authenticated():
+        render_user_badge_sidebar()
+
     selected_page = st.sidebar.radio(
         "Application Navigation",
         options=navigation_options,
@@ -116,15 +134,15 @@ def main() -> None:
 
     st.sidebar.markdown(
         """
-        <div style="margin-top: 2.2rem; padding: 14px 14px; background: #FFFFFF; border: 1px solid #E5EAE1; border-radius: 12px; box-shadow: 0 1px 3px rgba(23, 74, 50, 0.02);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <span style="font-size: 1rem;">🏫</span>
-                <span style="font-size: 0.80rem; font-weight: 700; color: #174A32;">School System Ready</span>
+        <div style="margin-top: 2rem; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #0D9488;"></span>
+                <span style="font-size: 0.80rem; font-weight: 700; color: #0F172A;">System Online & Ready</span>
             </div>
-            <div style="font-size: 0.74rem; color: #556B5F; line-height: 1.45;">
-                • Offline School Edition<br>
-                • Saves data on this device<br>
-                • Private student records
+            <div style="font-size: 0.74rem; color: #475569; line-height: 1.45;">
+                • Offline School Operation<br>
+                • Local SQLite Storage<br>
+                • No Biometrics Collected or Stored
             </div>
         </div>
         """,
@@ -138,13 +156,15 @@ def main() -> None:
     if not db_healthy:
         st.error(f"Database Connection Error: {db_error}")
         st.warning(
-            f"Configured path: '{get_configured_db_path()}'. "
-            "Please check folder write permissions or restore the SQLite file."
+            "Persistent database service is currently unavailable. "
+            "Please check storage folder write permissions or restore from backup."
         )
+        if st.button("🔄  Retry Connection", key="retry_db_conn_btn"):
+            st.rerun()
         return
 
     # -------------------------------------------------------------------------
-    # Page Routing (Supporting Mandated 6 Pages and Legacy Aliases)
+    # Page Routing (Supporting Mandated 6 Pages with Role Authorization)
     # -------------------------------------------------------------------------
     if selected_page in ("Home", "Dashboard", "Overview Dashboard"):
         render_overview()
@@ -156,16 +176,25 @@ def main() -> None:
         render_records()
 
     elif selected_page in ("Needs Attention", "Alerts", "Intelligence Centre"):
-        render_intelligence()
+        if not has_permission("view_intelligence"):
+            render_access_denied_card("Headmaster / Administrator")
+        else:
+            render_intelligence()
 
     elif selected_page in ("Reports", "Reports & Export"):
         render_reports()
 
     elif selected_page in ("Settings", "Data & Settings"):
-        render_settings()
+        if not has_permission("manage_settings"):
+            render_access_denied_card("Headmaster / Administrator")
+        else:
+            render_settings()
 
     elif selected_page in ("Test & Learn", "Algorithm Laboratory"):
-        render_laboratory()
+        if not has_permission("access_laboratory"):
+            render_access_denied_card("Headmaster / Administrator")
+        else:
+            render_laboratory()
 
 
 if __name__ == "__main__":

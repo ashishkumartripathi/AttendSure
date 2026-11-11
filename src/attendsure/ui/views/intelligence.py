@@ -111,7 +111,7 @@ def render_intelligence() -> None:
     m5.metric("Dismissed", dismissed_count)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
     # 3. Empty Database Guidance
@@ -235,7 +235,7 @@ def render_intelligence() -> None:
         _render_decision_support_box()
         return
 
-    st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
     # 6. Signals Registry Table
@@ -256,7 +256,7 @@ def render_intelligence() -> None:
         )
     st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
-    st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
     # 7. Signal Detail & Natural Language Explanation (Teacher-Friendly)
@@ -349,7 +349,7 @@ def render_intelligence() -> None:
             st.markdown(f"• **Session ID:** `{active_alert.session_id}`")
             st.markdown(f"• **Created At (UTC):** `{active_alert.created_at}`")
 
-            st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 10px 0;' />", unsafe_allow_html=True)
+            st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 10px 0;' />", unsafe_allow_html=True)
 
             ev1, ev2, ev3 = st.columns(3)
             with ev1:
@@ -376,7 +376,7 @@ def render_intelligence() -> None:
                 else:
                     st.write(active_alert.threshold_applied)
 
-            st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 10px 0;' />", unsafe_allow_html=True)
+            st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 10px 0;' />", unsafe_allow_html=True)
             st.markdown("#### Associated Database Session Context")
             if ref_session is not None:
                 sc1, sc2, sc3, sc4 = st.columns(4)
@@ -395,7 +395,7 @@ def render_intelligence() -> None:
                     "Details reflect alert metadata preserved at time of detection."
                 )
 
-            st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 10px 0;' />", unsafe_allow_html=True)
+            st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 10px 0;' />", unsafe_allow_html=True)
             st.markdown("#### Dual Stream Decision Support: Rule Finding vs. Machine Learning")
 
             # Compute ML Decision Support for this session

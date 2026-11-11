@@ -323,6 +323,22 @@ def _render_governance_and_privacy() -> None:
         """
     )
 
+    try:
+        active_db_path = get_configured_db_path()
+        if os.path.exists(active_db_path):
+            with open(active_db_path, "rb") as f:
+                db_bytes = f.read()
+            st.download_button(
+                label="💾 Download SQLite Database Backup (.db)",
+                data=db_bytes,
+                file_name="attendsure_backup.db",
+                mime="application/x-sqlite3",
+                key="btn_download_db_backup",
+                help="Download an exact copy of the active local SQLite database for offline backup or migration.",
+            )
+    except Exception:
+        pass
+
     g1, g2 = st.columns(2)
 
     with g1:
@@ -331,7 +347,9 @@ def _render_governance_and_privacy() -> None:
             """
             - **No PII Collected:** The system processes solely aggregated classroom counts (`expected_enrollment`, `present_count`, `absent_count`).
             - **Zero Biometric Data:** No student names, student IDs, biometric facial templates, or permanent photos are ever collected, processed, or stored.
-            - **Decision Support, Never Accusation:** Review signals highlight unusual patterns for teachers and headmasters to verify, never as proof of misconduct.
+            - **No Permanent Image Storage:** Camera frames may be temporarily received and inspected in memory during roll-call capture to assist educator headcount verification, but are never permanently saved to disk, database, logs, or exports.
+            - **No Facial Recognition or Templates:** No facial recognition, individual student identification, facial landmark tracking, or biometric feature templates are created or stored.
+            - **Decision Support, Never Accusation:** Review signals highlight unusual attendance patterns for teachers and headmasters to verify, never as proof of misconduct.
             """
         )
 
