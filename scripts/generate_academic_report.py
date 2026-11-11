@@ -393,7 +393,7 @@ def build_complete_academic_report():
         "rationale (Rule ID, Observed Count, Baseline Reference, Applied Cutoff, and Plain-Language Explanation) routed through an administrative "
         "state machine (Pending, Acknowledged, Resolved, Dismissed). The system operates on a zero-PII data architecture (storing no student names, "
         "photos, or biometrics) and features dual persistence: managed cloud PostgreSQL 18.6 in production (via psycopg v3) and embedded SQLite "
-        "for offline execution. In rigorous evaluation across 414 automated tests (87.32s runtime), the deterministic rules achieved 96.67% accuracy, "
+        "for offline execution. In rigorous evaluation across 417 automated tests (79.90s runtime), the deterministic rules achieved 96.67% accuracy, "
         "100.0% precision, 54.55% session-level recall, and 100.0% event-level recall across multi-day anomaly episodes. The silhouette estimator achieved "
         "0.14 MAE across standard benchmark scenes, and warm screen navigation completes in 158 ms to 1.03 s for standard workflows. "
         "AttendSure proves that attendance integrity can be safeguarded affordably, reliably, and ethically without sacrificing child privacy."
@@ -430,7 +430,7 @@ def build_complete_academic_report():
         ("Section 22: Application Modules & Six-Screen Walkthrough", "Page 24"),
         ("Section 23: Deployment Architecture & Cloud Configuration", "Page 28"),
         ("Section 24: Privacy, Security & Role-Based Access Control", "Page 29"),
-        ("Section 25: Testing Methodology & Verification Suite (414 Tests)", "Page 31"),
+        ("Section 25: Testing Methodology & Verification Suite (417 Tests)", "Page 31"),
         ("Section 26: Camera Synthetic Benchmark Results & Error Analysis", "Page 33"),
         ("Section 27: Anomaly Detection Benchmark & Episode Evaluation", "Page 35"),
         ("Section 28: Performance Evaluation & Latency Decomposition", "Page 38"),
@@ -638,7 +638,7 @@ def build_complete_academic_report():
         "• SQLite 3: Zero-configuration embedded transactional database for 100% offline rural school operation.\n"
         "• OpenCV (Headless) & Pillow: Lightweight image processing for blur variance and silhouette contour segmentation without GUI overhead.\n"
         "• Scikit-Learn: Interpretable CART decision tree classifier (max_depth=4) for baseline machine learning comparison.\n"
-        "• pytest 8.4+: Rigorous testing framework executing 414 automated unit, integration, and UI tests."
+        "• pytest 8.4+: Rigorous testing framework executing 417 automated unit, integration, and UI tests."
     )
 
     # =========================================================================
@@ -849,10 +849,10 @@ def build_complete_academic_report():
     # =========================================================================
     # SECTION 25: TESTING METHODOLOGY & VERIFICATION SUITE
     # =========================================================================
-    add_custom_heading(doc, "Section 25: Testing Methodology & Verification Suite (414 Tests)", level=1)
+    add_custom_heading(doc, "Section 25: Testing Methodology & Verification Suite (417 Tests)", level=1)
     doc.add_paragraph(
         "Software quality is verified through an automated test suite executed via pytest. "
-        "All 414 automated tests pass with 100% success in 87.32 seconds with 0 regressions, 0 failures, and 0 warnings."
+        "All 417 automated tests pass with 100% success in 79.90 seconds with 0 regressions, 0 failures, and 0 warnings."
     )
 
     test_headers = ["Test Module", "Test Scope & Capabilities", "Tests Count", "Execution Status"]
@@ -865,16 +865,16 @@ def build_complete_academic_report():
         ("test_detection_drop.py", "Attendance drop rule, rolling median window, threshold cutoffs", "15", "PASS (100%)"),
         ("test_detection_repeated.py", "Repeated headcount streak accumulator, consecutive day tracking", "19", "PASS (100%)"),
         ("test_detection_webcam.py", "Manual vs. camera discrepancy detection, camera status gating", "15", "PASS (100%)"),
-        ("test_person_estimator.py", "Otsu threshold, aspect ratio filtering, bench cluster normalization", "6", "PASS (100%)"),
+        ("test_person_estimator.py", "Otsu threshold, aspect ratio filtering, bench clusters, 6 quality cases", "7", "PASS (100%)"),
         ("test_ml_decision_tree.py", "CART decision tree training, feature extraction, holdout evaluation", "9", "PASS (100%)"),
         ("test_ui_overview.py", "Overview screen rendering, empty-state banners, active today KPIs", "6", "PASS (100%)"),
-        ("test_ui_register.py", "Roll-call form inputs, invariant rejection banners, submission", "12", "PASS (100%)"),
+        ("test_ui_register.py", "Roll-call form inputs, quick actions, invariant rejection, submission", "14", "PASS (100%)"),
         ("test_ui_records.py", "Records table rendering, cohort filtering, date search, pagination", "4", "PASS (100%)"),
         ("test_ui_intelligence.py", "Needs Attention triage cards, evidence formatting, review lifecycle", "10", "PASS (100%)"),
         ("test_ui_reports.py", "Reports aggregations, daily trend plots, CSV download generation", "12", "PASS (100%)"),
         ("test_ui_settings.py", "Diagnostic checks, DB health ping, storage stats, metadata", "5", "PASS (100%)"),
         ("Other Modules", "Package exports, CSV contracts, RFID providers, demo seeds", "246", "PASS (100%)"),
-        ("TOTAL VERIFIED SUITE", "Complete System Functional, Architectural & UI Coverage", "414", "414 PASSED (87.32s)"),
+        ("TOTAL VERIFIED SUITE", "Complete System Functional, Architectural & UI Coverage", "417", "417 PASSED (79.90s)"),
     ]
     tbl_tests = doc.add_table(rows=1, cols=4)
     format_table(tbl_tests, [1.6, 2.7, 0.9, 1.2], test_headers, test_rows)
@@ -1069,7 +1069,7 @@ def build_complete_academic_report():
         "administrative accountability."
     )
     doc.add_paragraph(
-        "With 414 passing automated tests (100% pass rate in 87s), 96.67% rule accuracy, 100% precision, 100% event-level recall, "
+        "With 417 passing automated tests (100% pass rate in 79.9s), 96.67% rule accuracy, 100% precision, 100% event-level recall, "
         "sub-second query execution, and a live cloud deployment backed by serverless PostgreSQL, the system is technically verified, "
         "scientifically bounded, and ready for academic demonstration."
     )
@@ -1100,14 +1100,15 @@ def build_complete_academic_report():
     add_custom_heading(doc, "Section 33: Appendices & Empirical Verification Evidence", level=1)
     doc.add_paragraph(
         "Appendix A: Repository & Database Integrity Checksums\n"
+        "• Authoritative Release Directory: AttendSure_Public_Release/ (Note: The older AttendSure/ is an archival/reference copy)\n"
         "• Working Branch: feature/modern-saas-ui\n"
-        "• Verified Head Commit: f65ff3f7025b9b97ae8b2068bdda08e313ff01d9\n"
+        "• Verified Release Commits: 238e547, 359993c\n"
         "• Target main Branch Commit: 7324e9e067b7b0d01084b486adc04d0cc0a38c66 (Verified Strictly Unaltered)\n"
         "• Operational Database File: data/attendsure.db\n"
         "• Operational Database SHA256: 46C22853EF5697DFE449FD0D61CFE5E719A84FF5C8260A2BA0F16935ED97F6AE (Verified Strictly Unaltered)\n\n"
         "Appendix B: Test Suite Execution Command & Log Summary\n"
         "Execution Command: pytest\n"
-        "Result: 414 passed in 87.32s (Python 3.13.9, pytest-8.4.2, pluggy-1.5.0)\n"
+        "Result: 417 passed in 79.90s (Python 3.13.9, pytest-8.4.2, pluggy-1.5.0)\n"
         "Regressions: 0 failures, 0 errors, 0 warnings."
     )
 

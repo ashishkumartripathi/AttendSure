@@ -125,7 +125,7 @@ sequenceDiagram
 - **Action:** Navigate to **Settings** or open presentation summary slide.
 - **Spoken Commentary:**
   > "To conclude, we emphasize our verified scientific boundaries:
-  > - **Automated Test Suite:** 414 automated tests pass with 100% success in 87 seconds.
+  > - **Automated Test Suite:** 417 automated tests pass with 100% success in ~80 seconds.
   > - **Synthetic vs. Field Reality:** Our camera estimator achieves 0.14 MAE on synthetic silhouettes. We explicitly disclose that this does not constitute real-world classroom accuracy, where lighting and occlusion vary widely.
   > - **Hardware Boundary:** No physical RFID scanner hardware is claimed; the system provides a clean software abstraction for future hardware integration.
   > - **Privacy-First:** AttendSure proves that school attendance integrity can be safeguarded affordably and ethically without compromising child privacy."
@@ -139,8 +139,8 @@ In the event of network disruption, cloud provider downtime, or physical project
 ### Fallback Level 1: Cloud Network Failure $\to$ Local Offline Execution
 If Streamlit Community Cloud or the Singapore Neon PostgreSQL connection times out:
 ```bash
-# 1. Open local terminal in repository root
-cd AttendSure
+# 1. Open local terminal in authoritative repository root
+cd AttendSure_Public_Release
 
 # 2. Run local Streamlit app in Offline SQLite mode
 streamlit run src/attendsure/ui/app.py
@@ -155,7 +155,7 @@ If the host evaluation machine experiences display or runtime errors:
 ### Fallback Level 3: Terminal Benchmark Verification
 Examiners wishing to verify algorithm claims directly without GUI:
 ```bash
-# Run the complete test suite (414 tests)
+# Run the complete test suite (417 tests)
 pytest
 
 # Run the benchmark reproduction script

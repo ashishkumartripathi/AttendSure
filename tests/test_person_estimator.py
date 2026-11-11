@@ -162,3 +162,59 @@ def test_labelled_evaluation_benchmark_and_mae():
     assert mae <= 1.0, f"Benchmark MAE ({mae:.2f}) exceeded acceptable benchmark bound."
     assert max_err <= 1, f"Max error ({max_err}) exceeded acceptable single-sample bound."
 
+
+def test_six_camera_benchmark_cases():
+    """Verify camera estimation and quality behavior across the 6 required benchmark cases."""
+    # 1. Clear Image
+    clear_bytes = _generate_synthetic_classroom_frame(student_positions=[120, 250, 380])
+    q_clear = validate_image_quality(clear_bytes)
+    res_clear = estimate_classroom_occupancy(clear_bytes, quality_result=q_clear, expected_enrollment=30)
+    assert q_clear.quality_status == "GOOD"
+    assert q_clear.is_valid is True
+    assert res_clear.estimated_count == 3
+    assert res_clear.confidence_score >= 0.70
+    assert res_clear.is_uncertain is False
+
+    # 2. Blurry Image
+    blur_bytes = _generate_synthetic_classroom_frame(student_positions=[120, 250, 380], blur=True)
+    q_blur = validate_image_quality(blur_bytes)
+    res_blur = estimate_classroom_occupancy(blur_bytes, quality_result=q_blur, expected_enrollment=30)
+    assert q_blur.quality_status == "BLURRED"
+    assert res_blur.is_uncertain is True
+    assert "sharpness" in res_blur.uncertainty_reason
+
+    # 3. Dark/Underexposed Image
+    dark_bytes = _generate_synthetic_classroom_frame(student_positions=[120, 250, 380], dark=True)
+    q_dark = validate_image_quality(dark_bytes)
+    res_dark = estimate_classroom_occupancy(dark_bytes, quality_result=q_dark, expected_enrollment=30)
+    assert q_dark.quality_status == "POOR_LIGHTING"
+    assert res_dark.is_uncertain is True
+
+    # 4. Invalid File
+    corrupt_bytes = b"invalid_binary_corrupted_payload"
+    q_invalid = validate_image_quality(corrupt_bytes)
+    res_invalid = estimate_classroom_occupancy(corrupt_bytes, quality_result=q_invalid, expected_enrollment=30)
+    assert q_invalid.quality_status == "INVALID_FORMAT"
+    assert q_invalid.is_valid is False
+    assert res_invalid.estimated_count is None
+    assert res_invalid.is_uncertain is True
+
+    # 5. Blank / No Silhouettes
+    blank_img = Image.new("L", (500, 350), color=180)
+    buf = io.BytesIO()
+    blank_img.save(buf, format="JPEG")
+    blank_bytes = buf.getvalue()
+    q_blank = validate_image_quality(blank_bytes)
+    res_blank = estimate_classroom_occupancy(blank_bytes, quality_result=q_blank, expected_enrollment=30)
+    assert res_blank.estimated_count == 0
+    assert res_blank.is_uncertain is True
+
+    # 6. Multiple Silhouettes
+    multi_bytes = _generate_synthetic_classroom_frame(student_positions=[60, 140, 220, 300, 380, 440])
+    q_multi = validate_image_quality(multi_bytes)
+    res_multi = estimate_classroom_occupancy(multi_bytes, quality_result=q_multi, expected_enrollment=30)
+    assert q_multi.quality_status == "GOOD"
+    assert res_multi.estimated_count == 6
+    assert res_multi.is_uncertain is False
+    assert res_multi.confidence_score >= 0.70
+

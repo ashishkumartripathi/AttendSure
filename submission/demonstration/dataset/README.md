@@ -105,6 +105,6 @@ The dataset embeds 11 positive anomaly sessions corresponding to:
 To regenerate this demonstration dataset bit-for-bit:
 
 ```bash
-cd AttendSure
+cd AttendSure_Public_Release
 python submission/demonstration/generate_demo_dataset.py
 ```

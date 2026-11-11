@@ -58,10 +58,27 @@ def render_register() -> None:
 # -----------------------------------------------------------------------------
 
 
+def _on_mark_all_present() -> None:
+    """Callback to safely set Present Today to Total Students before widget render."""
+    enr = st.session_state.get("manual_expected_enrollment", 30)
+    st.session_state["manual_present_count"] = int(enr)
+
+
+def _on_mark_all_absent() -> None:
+    """Callback to safely set Present Today to 0 before widget render."""
+    st.session_state["manual_present_count"] = 0
+
+
 def _render_roll_call_entry() -> None:
     """Render the teacher-friendly daily roll-call entry form with optional classroom photo."""
     st.subheader("Record Attendance")
     st.caption("Record attendance for your class in a few simple steps.")
+
+    # Initialize roll-call session state defaults safely before widgets render
+    if "manual_expected_enrollment" not in st.session_state:
+        st.session_state["manual_expected_enrollment"] = 30
+    if "manual_present_count" not in st.session_state:
+        st.session_state["manual_present_count"] = 25
 
     # -------------------------------------------------------------------------
     # Steps 1 & 2: Select Class & Date
@@ -88,7 +105,6 @@ def _render_roll_call_entry() -> None:
         "Total Students",
         min_value=1,
         max_value=500,
-        value=30,
         step=1,
         help="Total number of students enrolled in this class.",
         key="manual_expected_enrollment",
@@ -98,7 +114,6 @@ def _render_roll_call_entry() -> None:
         "Present Today",
         min_value=0,
         max_value=500,
-        value=25,
         step=1,
         help="Number of students present in class today.",
         key="manual_present_count",
@@ -121,16 +136,35 @@ def _render_roll_call_entry() -> None:
             "Please check the numbers before saving."
         )
 
-    # Quick Roster Helper
-    with st.expander("📋 Student Roll Call Helper (Optional Quick Check)", expanded=False):
-        st.caption("Quickly mark students present or absent from the class roster.")
-        r_col1, r_col2 = st.columns(2)
-        if r_col1.button("✅ Mark All Present", key="btn_quick_all_present", use_container_width=True):
-            st.session_state["manual_present_count"] = int(expected_enrollment)
-            st.rerun()
-        if r_col2.button("❌ Mark All Absent", key="btn_quick_all_absent", use_container_width=True):
-            st.session_state["manual_present_count"] = 0
-            st.rerun()
+    # Quick Roster Helper - prominent and accessible on desktop and mobile
+    st.markdown(
+        """
+        <div style="margin: 0.5rem 0 0.25rem 0; font-size: 0.85rem; font-weight: 600; color: #173F2D;">
+            ⚡ Quick Roll Call Actions
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    r_col1, r_col2 = st.columns(2)
+    r_col1.button(
+        "✅ Mark All Present",
+        key="btn_quick_all_present",
+        on_click=_on_mark_all_present,
+        use_container_width=True,
+        help="Quickly sets Present Today to match Total Students enrollment.",
+    )
+    r_col2.button(
+        "❌ Mark All Absent",
+        key="btn_quick_all_absent",
+        on_click=_on_mark_all_absent,
+        use_container_width=True,
+        help="Quickly sets Present Today to 0.",
+    )
+
+    st.caption(
+        "💡 Note: Entered attendance values are preserved across class and date changes so you never lose your entered headcount. "
+        "Use 'Mark All Present' or edit directly to adjust."
+    )
 
     # -------------------------------------------------------------------------
     # Step 5: Simple Attendance Summary
@@ -170,6 +204,13 @@ def _render_roll_call_entry() -> None:
     )
     st.caption("Take a classroom photo if you want to keep a visual record. Confirm the student count yourself.")
 
+    # Explicit warning stating camera estimation module is experimental and unvalidated
+    st.info(
+        "ℹ️ **Experimental Verification Notice:** The camera estimation module is an experimental decision-support prototype "
+        "using non-biometric silhouette analysis. It is unvalidated for autonomous classroom counting and is NOT a replacement "
+        "for educator roll call. All final determinations remain with the teacher."
+    )
+
     camera_photo = st.camera_input("Take classroom verification photo", key="camera_input_photo")
     teacher_photo_confirmed = None
     if camera_photo is not None:
@@ -198,8 +239,19 @@ def _render_roll_call_entry() -> None:
             else:
                 st.info(f"📷 **Automated Count:** Unavailable\n\n*{est_res.explanation}*")
 
-        # Explicit Teacher Confirmation Input
-        default_confirm = est_res.estimated_count if est_res.estimated_count is not None else int(present_count)
+        # Explicit Teacher Confirmation Input & Fallback Handling:
+        # If camera estimation is uncertain or unavailable, manual roll-call count remains the authoritative default.
+        if est_res.is_uncertain or est_res.estimated_count is None:
+            default_confirm = int(present_count)
+            st.warning(
+                f"⚠️ **Uncertain Camera Estimate — Manual Roll Call Retained as Default**\n\n"
+                f"The automated headcount estimate is uncertain ({est_res.uncertainty_reason or 'sub-optimal conditions'}). "
+                f"To prevent erroneous records, confirmed headcount defaults to your manual roll-call count ({present_count}). "
+                f"Please inspect the photo and confirm the final physical headcount."
+            )
+        else:
+            default_confirm = est_res.estimated_count
+
         default_confirm = max(0, min(int(expected_enrollment), default_confirm))
         teacher_photo_confirmed = st.number_input(
             "Confirmed Physical Headcount from Classroom Photo",

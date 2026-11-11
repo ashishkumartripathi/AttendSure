@@ -407,7 +407,7 @@ def create_deck():
         ("DB Abstraction", "SQLAlchemy 2.0+ & psycopg v3", "Connection pooling, relational schema reflection, and driver normalization."),
         ("Image Processing", "OpenCV (headless) & Pillow", "Laplacian blur variance, luminance analysis, and Otsu contour extraction."),
         ("Anomaly Modeling", "Scikit-Learn (CART Tree)", "Interpretable shallow decision tree (max_depth=4) with class weighting."),
-        ("Quality Assurance", "pytest & pytest-asyncio", "414 automated unit, integration, and UI tests passing in 87 seconds."),
+        ("Quality Assurance", "pytest & pytest-asyncio", "417 automated unit, integration, and UI tests passing in 79.9s."),
     ]
 
     for idx, (cat, tech, note) in enumerate(stack_items):
@@ -574,7 +574,7 @@ def create_deck():
     # =========================================================================
     # SLIDE 12: Empirical Verification & Test Suite
     # =========================================================================
-    slide12 = add_slide_base("Automated Verification Suite: 414 Tests Passing", "Verification & Quality Assurance", 12)
+    slide12 = add_slide_base("Automated Verification Suite: 417 Tests Passing", "Verification & Quality Assurance", 12)
 
     # Metric Cards Top Row
     m_tests = add_card(slide12, Inches(0.8), Inches(1.6), Inches(2.7), Inches(1.6))
@@ -590,7 +590,7 @@ def create_deck():
     mp.font.bold = True
     mp.font.color.rgb = COLOR_DARK_GREEN
     mp_sub = mtf.add_paragraph()
-    mp_sub.text = "414 of 414 tests passing"
+    mp_sub.text = "417 of 417 tests passing"
     mp_sub.font.size = Pt(9.5)
     mp_sub.font.color.rgb = COLOR_TEXT_MUTED
 
@@ -602,7 +602,7 @@ def create_deck():
     mtf.paragraphs[0].font.bold = True
     mtf.paragraphs[0].font.color.rgb = COLOR_FOREST
     mp = mtf.add_paragraph()
-    mp.text = "87.32 s"
+    mp.text = "79.90 s"
     mp.font.size = Pt(28)
     mp.font.bold = True
     mp.font.color.rgb = COLOR_DARK_GREEN
@@ -805,7 +805,7 @@ def create_deck():
     ctf.paragraphs[0].font.color.rgb = COLOR_DARK_GREEN
     cp = ctf.add_paragraph()
     cp.text = "• Solved the Rural Attendance Dilemma:\n  Delivered a robust, privacy-first decision-support system without biometric surveillance or costly hardware.\n\n" \
-              "• Verified Software Quality:\n  414 passing tests, 96.67% rule accuracy, 100% precision, 100% event recall, sub-second queries, and live cloud deployment.\n\n" \
+              "• Verified Software Quality:\n  417 passing tests, 96.67% rule accuracy, 100% precision, 100% event recall, sub-second queries, and live cloud deployment.\n\n" \
               "• Institutional Readiness:\n  Equipped with progressive disclosure UI, relational constraints, zero silent fallback, and complete audit logging.\n\n" \
               "GitHub Repository:\nhttps://github.com/ashishkumartripathi/AttendSure"
     cp.font.size = Pt(11)

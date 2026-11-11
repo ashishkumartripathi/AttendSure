@@ -15,7 +15,7 @@
 | Evidence Domain | Primary Document / Code Artifact | Execution / Reproduction Command | Key Verified Metric / Finding |
 | :--- | :--- | :--- | :--- |
 | **Comprehensive Evaluation** | `docs/technical_evaluation_report.md` | N/A (Markdown Report) | Full empirical findings across all 5 verification pillars |
-| **Automated Test Suite** | `tests/` (34 test files) | `pytest` | **414 of 414 passed in 87.32s** (0 errors, 0 warnings) |
+| **Automated Test Suite** | `tests/` (34 test files) | `pytest` | **417 of 417 passed in 79.90s** (0 errors, 0 warnings) |
 | **Task 1: Functionality** | `scratch/verify_task1_functionality.py` | `python scratch/verify_task1_functionality.py` | 9 of 9 subtests passed (all 6 views + auth + persistence) |
 | **Task 2: Database & Security** | `scratch/audit_task2_security.py` | `python scratch/audit_task2_security.py` | 6 of 6 subtests passed (6 check constraints, rollback, zero silent fallback) |
 | **Task 3: Camera Benchmark** | `scratch/benchmark_task3_camera.py` | `python scratch/benchmark_task3_camera.py` | Clean MAE = **0.00**, Standard 7-case MAE = **0.14**, Overall numeric MAE = **0.44** |

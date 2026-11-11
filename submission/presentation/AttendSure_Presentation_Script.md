@@ -25,7 +25,7 @@
 | **09** | Explainable Anomaly Detection: 3 Production Rules | 6:30 – 7:45 | Harsh |
 | **10** | Human-in-the-Loop Review: Decision Support, Never Accusation | 7:45 – 8:45 | Harsh |
 | **11** | Application Interface Showcase (Progressive Disclosure) | 8:45 – 9:45 | Ashish |
-| **12** | Automated Verification Suite: 414 Tests Passing | 9:45 – 10:45 | Ashish |
+| **12** | Automated Verification Suite: 417 Tests Passing | 9:45 – 10:45 | Ashish |
 | **13** | Anomaly Detection Benchmark Results | 10:45 – 11:45 | Harsh |
 | **14** | System Performance & Latency Decomposition | 11:45 – 12:45 | Ashish |
 | **15** | Operational Limitations & Scientific Boundaries | 12:45 – 13:45 | Harsh |
@@ -101,7 +101,7 @@
 > In production, we connect to Neon Managed PostgreSQL 18.6 in AWS Singapore using the modern `psycopg` v3 binary driver and connection pooling.
 > Image processing relies on headless OpenCV and Pillow, while machine learning utilizes Scikit-Learn's CART tree.
 > Our security layer uses PBKDF2 with HMAC-SHA256, 100,000 iterations, and 16-byte random salts.
-> Finally, our quality assurance is powered by `pytest`, achieving 100% pass rates across 414 automated tests in 87 seconds."
+> Finally, our quality assurance is powered by `pytest`, achieving 100% pass rates across 417 automated tests in ~80 seconds."
 
 ---
 
@@ -112,8 +112,8 @@
 > In Stage 1, an automated quality gate measures sharpness via discrete Laplacian operator variance, rejecting blurred frames below 100, and evaluates lighting luminance, rejecting frames outside the 40 to 225 range.
 > In Stage 2, adaptive Otsu thresholding segments student bodies from background walls and wooden desks in ephemeral memory.
 > In Stage 3, connected component contours are filtered by anatomical aspect ratio between 1.2 and 3.5, and bench clusters are normalized using median single-student area.
-> In Stage 4, mandatory educator verification is enforced. The estimated count is advisory only. The teacher inspects the count, adjusts it if necessary, and confirms submission.
-> Images are processed entirely in RAM (`io.BytesIO`) and purged immediately upon return. No photo files are stored on disk."
+> In Stage 4, mandatory educator verification and fallback handling are enforced. The estimated count is advisory only. Crucially, if an image is degraded or estimation is uncertain, the system NEVER silently adopts an unvalidated count—it defaults strictly to the teacher's manual roll-call count.
+> Images are processed entirely in RAM (`io.BytesIO`) and purged immediately upon return. No photo files or student faces are stored on disk or database."
 
 ---
 
@@ -145,16 +145,16 @@
 
 ---
 
-### Slide 12: Automated Verification Suite: 414 Tests Passing (9:45 – 10:45)
+### Slide 12: Automated Verification Suite: 417 Tests Passing (9:45 – 10:45)
 **Presenter: Ashish**
 > "Engineering rigor is verified through our automated test suite:
-> All **414 automated tests pass in 87.32 seconds** with zero regressions, zero failures, and zero warnings.
+> All **417 automated tests pass in 79.90 seconds** with zero regressions, zero failures, and zero warnings.
 > Our tests cover:
 > - Cryptographic password hashing and role-based permissions in `test_auth.py`.
 > - Mathematical count invariants and check constraints in `test_data_validation.py`.
 > - Connection pooling, transaction rollback, and production mode enforcement in `test_db_engine.py`.
 > - Rule detection accuracy, rolling baselines, and cross-modal checks across 49 detection tests.
-> - And over 70 headless UI integration tests using Streamlit's `AppTest` harness."
+> - And over 84 headless UI integration tests using Streamlit's `AppTest` harness."
 
 ---
 
@@ -198,7 +198,7 @@
 ### Slide 16: Conclusion, Team & Academic References (13:45 – 15:00)
 **Presenter: Ashish & Harsh**
 > "In conclusion, AttendSure proves that school attendance integrity can be safeguarded ethically, affordably, and dependably without resorting to child biometric surveillance or costly hardware.
-> With 414 passing tests, 96.67% rule accuracy, 100% precision, sub-second queries, and a live cloud deployment backed by serverless PostgreSQL, the system is technically verified and demonstration-ready.
+> With 417 passing tests, 96.67% rule accuracy, 100% precision, sub-second queries, and a live cloud deployment backed by serverless PostgreSQL, the system is technically verified and demonstration-ready.
 > We express our sincere gratitude to our project mentor, **Mr. Hitesh Jangid**, for his guidance throughout this project.
 > We now invite questions from the examiners. Thank you."
 

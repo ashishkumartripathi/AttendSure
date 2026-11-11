@@ -63,7 +63,8 @@ The application interface adheres to the principle of **Progressive Disclosure**
 - **Frontend Layer**: `streamlit 1.51.0`, `altair 5.5.0`
 - **Data Modeling & Analytics**: `pandas 2.3.3`
 - **Local Persistence**: `sqlite3` (ACID compliant, Write-Ahead Logging [WAL] mode, zero external network dependency)
-- **Quality Assurance**: `pytest 8.4.2` (359 automated tests with 100% pass rate)
+- **Cloud Database (Production)**: Neon Managed PostgreSQL 18.6 via `psycopg` v3 and SQLAlchemy 2.0+
+- **Quality Assurance**: `pytest 8.4.2` (417 automated tests with 100% pass rate)
 
 ---
 
@@ -71,9 +72,9 @@ The application interface adheres to the principle of **Progressive Disclosure**
 
 ### 5.1 Installation
 ```bash
-# Clone the repository
+# Clone the repository and navigate to the authoritative release directory
 git clone https://github.com/ashishkumartripathi/AttendSure.git
-cd AttendSure
+cd AttendSure_Public_Release
 
 # Create and activate virtual environment
 python -m venv .venv
@@ -99,7 +100,7 @@ streamlit run src/attendsure/ui/app.py
 
 ### 5.4 Running Automated Tests
 ```bash
-# Run all 359 automated tests
+# Run all 417 automated tests
 pytest
 ```
 

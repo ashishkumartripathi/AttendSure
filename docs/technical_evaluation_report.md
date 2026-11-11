@@ -2,10 +2,14 @@
 
 **Official Project Title:** Rural School Attendance Integrity and Intervention Decision System  
 **Repository:** https://github.com/ashishkumartripathi/AttendSure  
+**Authoritative Directory:** `AttendSure_Public_Release/` (Note: The older `AttendSure/` directory is an archival/reference copy)  
 **Branch:** `feature/modern-saas-ui`  
-**Latest Verified Commit:** `f65ff3f7025b9b97ae8b2068bdda08e313ff01d9`  
+**Verified Commits:** `238e547`, `359993c`  
 **Target `main` Branch Status:** Strictly unchanged at `7324e9e067b7b0d01084b486adc04d0cc0a38c66`  
 **Project Mentor:** Mr. Hitesh Jangid  
+**Team Members:**  
+- Ashish Kumar Tripathi (Registration No. 12509400, Roll No. 21)  
+- Harsh Jakhar (Registration No. 12517556, Roll No. 8)  
 **Production Database:** Neon Managed PostgreSQL 18.6 (`aws-ap-southeast-1`)  
 **Operational Database SHA256:** `46C22853EF5697DFE449FD0D61CFE5E719A84FF5C8260A2BA0F16935ED97F6AE` (Verified Unaltered)  
 **Evaluation Date:** 2026-11-11  
@@ -20,23 +24,24 @@ This report documents the exhaustive, evidence-based technical evaluation of the
 
 1. **Application Functionality:** All 6 primary screens (Overview, Mark Attendance, Attendance Records, Needs Attention, Reports, Settings) pass end-to-end headless testing, state transitions, invariant validation, and user role gating.
 2. **Database & Schema Integrity:** The schema enforces 6 relational check constraints, primary keys, cascading foreign keys, unique constraint on `(class_id, session_date)`, and connection pooling. Production mode strictly forbids silent SQLite fallback.
-3. **Camera Silhouette Estimation (Synthetic Benchmark):**
+3. **Camera Silhouette Estimation (Synthetic Benchmark & Quality Suite):**
    - The non-biometric person-count estimator achieves an empirical Mean Absolute Error (MAE) of **0.00** on clean synthetic silhouettes (1–5 students) and **0.14** across the 7 original standard cases (zero-error = **85.7%**).
    - Across all 9 numeric benchmark scenarios (including bench clusters and degraded frames), MAE is **0.44** (zero-error = **77.8%**).
-   - Degraded frames are transparently flagged (`is_uncertain=True`), and the system strictly enforces mandatory educator verification before records are committed.
-   - *Scientific boundary:* These metrics reflect synthetic high-contrast silhouettes and must **not** be interpreted as real-world classroom accuracy.
+   - Tested across a dedicated 6-case image quality suite (clear, blurry, dark, invalid, blank, multi-silhouette).
+   - Degraded frames are transparently flagged (`is_uncertain=True`), and the system strictly enforces that uncertain estimates are NEVER silently adopted: educator manual roll call count remains the authoritative default.
+   - *Scientific boundary:* The camera estimation module is an experimental decision-support prototype using non-biometric silhouette analysis. It is unvalidated for autonomous classroom counting and is NOT a replacement for educator roll call.
 4. **Explainable Anomaly Detection:**
    - **Deterministic Production Rules:** Evaluated on 150 synthetic sessions with a 5.0% anomaly injection rate: Accuracy = **96.67%**, Precision = **100.00%**, Session-Level Recall = **54.55%** (6/11), Specificity = **100.00%**, and Event-Level Recall = **100.00%** (2/2 multi-day episodes detected).
    - **Supervised Machine Learning (Decision Tree):** Evaluated on 88 holdout testing sessions across 4 unseen classes: Accuracy = **92.05%**, Precision = **40.00%**, Recall = **80.00%**, Specificity = **92.77%**, F1-Score = **53.33%**.
 5. **System Performance & SLA:**
-   - Four screens achieve responsive navigation: Overview (**343 ms** p50), Attendance Records (**158 ms** p50), Settings (**1,017 ms** p50), and Mark Attendance (**1,034 ms** p50).
-   - Two screens are noticeably slower and exceed the 2-second target: **Needs Attention** (**2,000 ms** p50 / 2,975 ms p95) and **Reports & Export** (**3,684 ms** p50 / 6,901 ms p95).
+   - Warm screen navigation (p50 median across 10 repeated runs): Overview (**303 ms** p50), Attendance Records (**115 ms** p50), Settings (**473 ms** p50), Mark Attendance (**795 ms** p50), Needs Attention (**1,105 ms** p50), and Reports & Export (**1,892 ms** p50). Attendance submission completes in **1,866 ms** p50.
+   - Reports & Export exhibits tail latency (p95 = **3,848 ms**) due to longitudinal dataset aggregation and full CSV payload encoding.
    - Network transit to Neon in Singapore accounts for **~422 ms** baseline round-trip time.
 6. **Security & Privacy:**
    - Role-Based Access Control (RBAC) separates Headmasters from Teachers. Passwords use PBKDF2-HMAC-SHA256 with 100,000 iterations.
-   - Zero facial biometrics are extracted or stored.
+   - Zero facial biometrics are extracted or stored; captured frames are processed ephemerally in transient RAM only.
    - Hardware KMS encryption at rest and PostgreSQL Row-Level Security are documented as `NOT IMPLEMENTED`.
-7. **Automated Test Suite:** **414 of 414 automated tests pass** in **87.32 seconds** with 0 regressions and 0 warnings.
+7. **Automated Test Suite:** **417 of 417 automated tests pass** in **79.90 seconds** with 0 regressions and 0 warnings.
 
 ---
 
@@ -437,15 +442,15 @@ During academic evaluation, the following operational constraints must be explic
 To independently reproduce every result, metric, and benchmark documented in this report:
 
 ```bash
-# 1. Clone repository and checkout feature branch
+# 1. Clone repository and navigate to the authoritative release directory
 git clone https://github.com/ashishkumartripathi/AttendSure.git
-cd AttendSure
+cd AttendSure_Public_Release
 git checkout feature/modern-saas-ui
 
 # 2. Install dependencies in Python >= 3.13 environment
 pip install -r requirements.txt
 
-# 3. Run full automated test suite (414 tests)
+# 3. Run full automated test suite (417 tests)
 pytest
 
 # 4. Reproduce Machine Learning & Deterministic Rule Benchmarks
@@ -463,5 +468,5 @@ Get-FileHash -Algorithm SHA256 "data/attendsure.db"
 | Evaluation Track | Status | Justification & Evidence |
 | :--- | :---: | :--- |
 | **1. Production Functionality** | **READY** | All 6 screens functional, RBAC security enforced, Neon PostgreSQL integrated with pooled connections, zero silent SQLite fallback, robust invariant validation. |
-| **2. Academic Demonstration Readiness** | **READY** | All 414 test cases passing in ~87s, public cloud deployment active, clean Modern SaaS UI with zero transition ghosting, reproducible benchmarks. |
+| **2. Academic Demonstration Readiness** | **READY** | All 417 test cases passing in ~80s, public cloud deployment active, clean Modern SaaS UI with zero transition ghosting, reproducible benchmarks. |
 | **3. Field / Pilot Validation Readiness** | **REQUIRES PILOT** | While the software is structurally sound, field readiness requires actual deployment in rural schools with physical classroom lighting, local hardware, teacher training, and institutional approval. Synthetic tests validate software correctness, but field validation requires real-world empirical deployment. |

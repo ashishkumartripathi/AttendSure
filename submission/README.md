@@ -63,7 +63,7 @@ submission/
 | **PDF Report Fidelity** | Converted via Microsoft Word COM automation | 1.19 MB generated (100% native Word layout) | **PASS** |
 | **Presentation Deck (PPTX)**| 16 slides conforming to 16:9 widescreen layout | 273 KB generated via `python-pptx` | **PASS** |
 | **Presentation Script** | Slide-by-slide 10–15 min script with viva Q&A | `AttendSure_Presentation_Script.md` (20.9 KB) | **PASS** |
-| **Automated Test Suite** | >= 400 unit, integration, and UI tests | **414 of 414 tests passing in 87.32s** | **PASS** |
+| **Automated Test Suite** | >= 400 unit, integration, and UI tests | **417 of 417 tests passing in 79.90s** | **PASS** |
 | **Operational DB Unchanged**| SHA256 matches verified baseline | `46C22853EF5697DFE449FD0D61CFE5E719A84FF5C8260A2BA0F16935ED97F6AE` | **PASS** |
 | **Git main Unchanged** | `origin/main` commit remains strictly unaltered | `7324e9e067b7b0d01084b486adc04d0cc0a38c66` | **PASS** |
 | **Zero Credentials Committed**| No `.env.local`, API keys, or passwords committed | Checked via `.gitignore` and `git status` | **PASS** |
@@ -106,15 +106,15 @@ System Latencies (Live Neon Cloud in AWS Singapore):
 To independently verify every claim, document, and dataset in this package:
 
 ```bash
-# 1. Clone repository and checkout working branch
+# 1. Clone repository and navigate to authoritative release directory
 git clone https://github.com/ashishkumartripathi/AttendSure.git
-cd AttendSure
+cd AttendSure_Public_Release
 git checkout feature/modern-saas-ui
 
 # 2. Install dependencies (Python >= 3.13)
 pip install -r requirements.txt
 
-# 3. Run complete automated test suite (414 tests)
+# 3. Run complete automated test suite (417 tests)
 pytest
 
 # 4. Reproduce machine learning and deterministic rule benchmarks
