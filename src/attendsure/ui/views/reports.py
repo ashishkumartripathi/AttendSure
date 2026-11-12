@@ -25,7 +25,12 @@ from attendsure.services.attendance_service import (
     preview_csv_import,
 )
 from attendsure.ui.dev_mode import is_developer_mode
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import (
+    get_cached_alerts,
+    get_cached_sessions,
+    get_repository,
+    invalidate_data_cache,
+)
 from attendsure.ui.views.laboratory import render_laboratory
 
 
@@ -61,7 +66,7 @@ def render_reports() -> None:
     if dev_mode:
         with tabs[4]:
             render_laboratory()
-            st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+            st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
             _render_how_well_it_works()
 
 
@@ -71,13 +76,28 @@ def _render_attendance_summaries() -> None:
     st.caption("Class-wise performance, daily attendance, and classes with low attendance.")
 
     with get_repository() as repo:
-        sessions_df = repo.get_sessions(as_df=True)
+        sessions_df = get_cached_sessions(repo)
 
     if sessions_df.empty:
         st.info("No attendance records found to summarize.")
         return
 
     # 1. Class-wise Summary
+    min_date = sessions_df["session_date"].min()
+    max_date = sessions_df["session_date"].max()
+    num_cohorts = sessions_df["class_id"].nunique()
+
+    st.markdown(
+        f"""
+        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.82rem; color: #475569;">
+            📅 <b>Active Reporting Window:</b> {min_date} to {max_date} &nbsp;•&nbsp; 
+            🏫 <b>Cohorts Tracked:</b> {num_cohorts} &nbsp;•&nbsp; 
+            📋 <b>Total Sessions:</b> {len(sessions_df)}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown("#### 🏫 Class-wise Attendance Summary")
     class_summary = (
         sessions_df.groupby("class_id")
@@ -112,7 +132,7 @@ def _render_attendance_summaries() -> None:
         # Simple Altair Bar Chart
         bar_chart = (
             alt.Chart(chart_df)
-            .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6, color="#237A50")
+            .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6, color="#0D9488")
             .encode(
                 x=alt.X("Class:N", title=None, axis=alt.Axis(labelAngle=0)),
                 y=alt.Y("Average Attendance %:Q", scale=alt.Scale(domain=[0, 100])),
@@ -121,7 +141,7 @@ def _render_attendance_summaries() -> None:
         )
         st.altair_chart(bar_chart, use_container_width=True)
 
-    st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
 
     # 2. Daily Attendance Overview
     st.markdown("#### 📅 Daily Attendance")
@@ -161,7 +181,7 @@ def _render_attendance_summaries() -> None:
     low_sessions = low_sessions[low_sessions["rate"] < 75.0]
 
     if not low_sessions.empty:
-        st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+        st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
         st.markdown("#### ⚠️ Low Attendance Watch (< 75% Attendance)")
         st.caption("Sessions where attendance was noticeably low. Review these with teachers for student support.")
         st.dataframe(
@@ -205,7 +225,7 @@ def _render_sessions_export() -> None:
     )
 
     with get_repository() as repo:
-        all_sessions_df = repo.get_sessions(as_df=True)
+        all_sessions_df = get_cached_sessions(repo)
 
     # Extract distinct cohorts for dropdown
     distinct_cohorts = ["All Classes"]
@@ -595,6 +615,7 @@ def _render_csv_ingestion() -> None:
                     allow_partial=allow_partial,
                 )
 
+            invalidate_data_cache()
             st.session_state["reports_csv_commit_res"] = commit_result
             st.session_state.pop("reports_csv_preview_res", None)
             st.session_state.pop("reports_csv_preview_err", None)
@@ -610,7 +631,7 @@ def _render_csv_ingestion() -> None:
 
     elif "reports_csv_preview_res" in st.session_state:
         res = st.session_state["reports_csv_preview_res"]
-        st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+        st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
         st.subheader("Validation Preview (Pre-Commit Analysis)")
 
         if res.total_rows == 0:
@@ -681,7 +702,7 @@ def _render_csv_ingestion() -> None:
     # -------------------------------------------------------------------------
     if "reports_csv_commit_res" in st.session_state:
         commit_res = st.session_state["reports_csv_commit_res"]
-        st.markdown("<hr style='border: none; border-top: 1px solid #E2E9DF; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
+        st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 1.25rem 0 1rem 0;' />", unsafe_allow_html=True)
         st.subheader("Import Execution Results")
 
         if isinstance(commit_res, str):

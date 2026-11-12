@@ -533,3 +533,81 @@ def test_absent_count_updates_immediately_and_persists_invariant(tmp_path: Path)
         assert s.absent_count == 18
         # Strictly verify invariant: present + absent == expected
         assert s.present_count + s.absent_count == s.expected_enrollment
+
+
+def test_quick_action_mark_all_present_and_absent_repeated(tmp_path: Path):
+    """Verify 'Mark All Present' and 'Mark All Absent' buttons work repeatedly without StreamlitWidgetAlreadyInstantiatedError."""
+    db_file = tmp_path / "quick_actions.db"
+    at = AppTest.from_file(APP_PATH)
+    at.session_state["db_path"] = str(db_file)
+    at.run(timeout=10)
+
+    _navigate_to_register(at)
+
+    # 1. Click Mark All Present -> present=30, absent=0
+    btn_present = [b for b in at.button if b.key == "btn_quick_all_present"][0]
+    btn_present.click().run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 30
+    assert at.number_input(key="manual_absent_count_display").value == 0
+
+    # 2. Click Mark All Absent -> present=0, absent=30
+    btn_absent = [b for b in at.button if b.key == "btn_quick_all_absent"][0]
+    btn_absent.click().run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 0
+    assert at.number_input(key="manual_absent_count_display").value == 30
+
+    # 3. Click Mark All Present again -> present=30, absent=0 (verify repeatability)
+    btn_present = [b for b in at.button if b.key == "btn_quick_all_present"][0]
+    btn_present.click().run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 30
+    assert at.number_input(key="manual_absent_count_display").value == 0
+
+    # 4. Modify present manually -> absent updates
+    at.number_input(key="manual_present_count").set_value(18).run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 18
+    assert at.number_input(key="manual_absent_count_display").value == 12
+
+    # 5. Modify expected enrollment -> absent derives correctly
+    at.number_input(key="manual_expected_enrollment").set_value(45).run()
+    assert not at.exception
+    assert at.number_input(key="manual_absent_count_display").value == 27  # 45 - 18
+
+
+def test_attendance_state_preservation_across_class_and_date_change(tmp_path: Path):
+    """Verify entered attendance values are preserved when switching class or date without error."""
+    db_file = tmp_path / "state_preservation.db"
+    at = AppTest.from_file(APP_PATH)
+    at.session_state["db_path"] = str(db_file)
+    at.run(timeout=10)
+
+    _navigate_to_register(at)
+
+    at.number_input(key="manual_expected_enrollment").set_value(35).run()
+    at.number_input(key="manual_present_count").set_value(29).run()
+
+    # Switch class
+    at.text_input(key="manual_class_id").set_value("CLASS-05-B").run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 29
+
+    # Switch date to a valid past/today date
+    at.date_input(key="manual_session_date").set_value(date(2026, 11, 10)).run()
+    assert not at.exception
+    assert at.number_input(key="manual_present_count").value == 29
+
+    # Save attendance session
+    save_btn = [b for b in at.button if b.key == "btn_save_roll_call"][0]
+    save_btn.click().run()
+
+    assert not at.exception
+    assert len(at.error) == 0
+    with get_repository(db_path=db_file) as repo:
+        sessions = repo.get_sessions(class_id="CLASS-05-B")
+        assert len(sessions) == 1
+        assert sessions[0].present_count == 29
+        assert sessions[0].absent_count == 6
+        assert sessions[0].expected_enrollment == 35

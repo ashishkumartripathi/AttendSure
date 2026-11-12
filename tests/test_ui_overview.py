@@ -102,8 +102,14 @@ def test_overview_renders_without_exceptions_on_empty_db(tmp_path: Path):
 
     # Verify 5 KPI metrics render default empty values
     metrics_by_label = {m.label: m.value for m in at.metric}
-    assert metrics_by_label.get("Total Students", metrics_by_label.get("Attendance Records", "0")) == "0"
-    assert metrics_by_label.get("Present Today", metrics_by_label.get("Classes", "0")) == "0"
+    assert metrics_by_label.get(
+        "Total Enrolment Across Sessions",
+        metrics_by_label.get("Total Students", metrics_by_label.get("Attendance Records", "0")),
+    ) == "0"
+    assert metrics_by_label.get(
+        "Total Present Records",
+        metrics_by_label.get("Present Today", metrics_by_label.get("Classes", "0")),
+    ) == "0"
     assert metrics_by_label.get("Attendance Rate", metrics_by_label.get("Overall Attendance")) == "N/A"
     assert metrics_by_label.get("Needs Attention", metrics_by_label.get("Pending Review")) == "0"
 
@@ -129,8 +135,14 @@ def test_overview_renders_with_sample_sessions_and_alerts(tmp_path: Path):
     assert len(at.error) == 0
 
     metrics_by_label = {m.label: m.value for m in at.metric}
-    assert metrics_by_label.get("Total Students", metrics_by_label.get("Attendance Records")) in ("50", "2")
-    assert metrics_by_label.get("Present Today", metrics_by_label.get("Classes")) in ("40", "2")
+    assert metrics_by_label.get(
+        "Total Enrolment Across Sessions",
+        metrics_by_label.get("Total Students", metrics_by_label.get("Attendance Records")),
+    ) in ("50", "2")
+    assert metrics_by_label.get(
+        "Total Present Records",
+        metrics_by_label.get("Present Today", metrics_by_label.get("Classes")),
+    ) in ("40", "2")
     assert metrics_by_label.get("Attendance Rate", metrics_by_label.get("Overall Attendance")) == "80.0%"
     assert metrics_by_label.get("Needs Attention", metrics_by_label.get("Pending Review")) == "1"
 
@@ -145,6 +157,42 @@ def test_overview_renders_with_sample_sessions_and_alerts(tmp_path: Path):
     markdown_texts = [md.value for md in at.markdown]
     assert any("CLASS-01-A" in text for text in markdown_texts)
     assert any("Attendance was lower than usual" in text or "Unusual Attendance Drop" in text for text in markdown_texts)
+
+
+def test_overview_today_vs_historical_kpi_labeling(tmp_path: Path):
+    """Verify Overview Dashboard correctly distinguishes today's active sessions from historical totals."""
+    from datetime import date
+    db_file = tmp_path / "today_test.db"
+    repo = AttendanceRepository(db_path=db_file)
+    today_str = date.today().isoformat()
+    try:
+        s_today = SessionRecord(
+            session_id="550e8400-e29b-41d4-a716-446655449999",
+            class_id="CLASS-03-A",
+            session_date=today_str,
+            expected_enrollment=30,
+            present_count=27,
+            absent_count=3,
+            webcam_status="SUCCESS",
+            webcam_count=27,
+            record_source="MANUAL_ENTRY",
+            created_at=f"{today_str}T09:00:00Z",
+        )
+        repo.save_sessions([s_today])
+    finally:
+        repo.close()
+
+    at = AppTest.from_file(APP_PATH)
+    at.session_state["db_path"] = str(db_file)
+    at.run(timeout=10)
+
+    assert not at.exception
+    metrics_by_label = {m.label: m.value for m in at.metric}
+    # When today has sessions, primary teacher labels must specifically reflect Today
+    assert metrics_by_label.get("Total Students") == "30"
+    assert metrics_by_label.get("Present Today") == "27"
+    assert metrics_by_label.get("Absent Today") == "3"
+    assert metrics_by_label.get("Attendance Rate") == "90.0%"
 
 
 def test_app_navigation_to_all_six_pages(tmp_path: Path):

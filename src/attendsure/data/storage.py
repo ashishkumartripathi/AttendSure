@@ -5,10 +5,12 @@ session records and explainable anomaly alerts conforming to docs/data-contract.
 """
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
 from typing import Any, Optional, Sequence, Union
+import uuid
 
 import pandas as pd
 
@@ -87,6 +89,20 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 """
 
+CREATE_TABLE_REVIEWS_SQL = """
+CREATE TABLE IF NOT EXISTS alert_reviews (
+    review_id TEXT PRIMARY KEY,
+    alert_id TEXT NOT NULL,
+    new_status TEXT NOT NULL,
+    notes TEXT,
+    reviewed_at TEXT NOT NULL,
+    FOREIGN KEY (alert_id) REFERENCES alerts(alert_id) ON DELETE CASCADE,
+    CONSTRAINT chk_reviews_status CHECK (
+        new_status IN ('PENDING_REVIEW', 'ACKNOWLEDGED', 'RESOLVED', 'DISMISSED')
+    )
+);
+"""
+
 CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_sessions_class_date ON attendance_sessions(class_id, session_date);",
     "CREATE INDEX IF NOT EXISTS idx_sessions_date ON attendance_sessions(session_date);",
@@ -94,6 +110,7 @@ CREATE_INDEXES_SQL = [
     "CREATE INDEX IF NOT EXISTS idx_alerts_class_date ON alerts(class_id, session_date);",
     "CREATE INDEX IF NOT EXISTS idx_alerts_review_status ON alerts(review_status);",
     "CREATE INDEX IF NOT EXISTS idx_alerts_rule_id ON alerts(rule_id);",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_alert_id ON alert_reviews(alert_id);",
 ]
 
 VALID_REVIEW_STATUSES = {"PENDING_REVIEW", "ACKNOWLEDGED", "RESOLVED", "DISMISSED"}
@@ -146,6 +163,15 @@ REQUIRED_ALERT_FIELDS = (
 )
 
 
+def _trigger_cache_invalidation() -> None:
+    """Safely trigger data cache invalidation when a database write occurs."""
+    try:
+        from attendsure.ui.state import invalidate_data_cache
+        invalidate_data_cache()
+    except Exception:
+        pass
+
+
 class AttendanceRepository:
     """SQLite repository for attendance sessions and explainable alerts.
 
@@ -177,7 +203,11 @@ class AttendanceRepository:
 
         self._conn: Optional[sqlite3.Connection] = None
         self._is_closed: bool = False
-        self.init_schema()
+        try:
+            self.init_schema()
+        except Exception:
+            self.close()
+            raise
 
     @property
     def db_path(self) -> Union[str, Path]:
@@ -209,6 +239,7 @@ class AttendanceRepository:
             with self._conn:
                 self._conn.execute(CREATE_TABLE_SESSIONS_SQL)
                 self._conn.execute(CREATE_TABLE_ALERTS_SQL)
+                self._conn.execute(CREATE_TABLE_REVIEWS_SQL)
                 for index_sql in CREATE_INDEXES_SQL:
                     self._conn.execute(index_sql)
 
@@ -373,6 +404,7 @@ class AttendanceRepository:
         conn = self.get_connection()
         with conn:
             self._insert_session_records(conn, [record])
+        _trigger_cache_invalidation()
         return record
 
     def save_sessions(
@@ -401,6 +433,7 @@ class AttendanceRepository:
         conn = self.get_connection()
         with conn:
             self._insert_session_records(conn, records)
+        _trigger_cache_invalidation()
         return records
 
     def get_session_by_id(self, session_id: str) -> Optional[SessionRecord]:
@@ -710,6 +743,7 @@ class AttendanceRepository:
         self._verify_alert_session_consistency(conn, alert_objs)
         with conn:
             self._insert_alert_records(conn, params)
+        _trigger_cache_invalidation()
         return alert_objs
 
     def get_alert_by_id(self, alert_id: str) -> Optional[Alert]:
@@ -855,7 +889,72 @@ class AttendanceRepository:
         sql = "UPDATE alerts SET review_status = ? WHERE alert_id = ?"
         with conn:
             cur = conn.execute(sql, (new_status, alert_id))
-            return cur.rowcount > 0
+            success = cur.rowcount > 0
+        if success:
+            _trigger_cache_invalidation()
+        return success
+
+    def add_alert_review(
+        self,
+        alert_id: str,
+        new_status: str,
+        notes: Optional[str] = None,
+        reviewed_at: Optional[str] = None,
+    ) -> bool:
+        """Record an explicit human review decision with optional notes.
+
+        Updates the alert's review_status and appends an audit entry to alert_reviews.
+
+        Args:
+            alert_id: Identifier of the alert.
+            new_status: New review status (PENDING_REVIEW, ACKNOWLEDGED, RESOLVED, DISMISSED).
+            notes: Optional explanatory notes explaining why the status was assigned.
+            reviewed_at: Optional ISO 8601 timestamp string. Defaults to UTC now.
+
+        Returns:
+            True if review was recorded and alert was updated; False if alert does not exist.
+        """
+        if new_status not in VALID_REVIEW_STATUSES:
+            raise ValueError(
+                f"Invalid review_status '{new_status}'. Allowed values are: {sorted(VALID_REVIEW_STATUSES)}."
+            )
+
+        ts = reviewed_at or datetime.now(timezone.utc).isoformat()
+        review_id = f"REV-{uuid.uuid4()}"
+
+        conn = self.get_connection()
+        with conn:
+            # Update parent alert review_status
+            cur = conn.execute("UPDATE alerts SET review_status = ? WHERE alert_id = ?", (new_status, alert_id))
+            if cur.rowcount == 0:
+                return False
+
+            # Insert review record
+            conn.execute(
+                "INSERT INTO alert_reviews (review_id, alert_id, new_status, notes, reviewed_at) VALUES (?, ?, ?, ?, ?)",
+                (review_id, alert_id, new_status, notes.strip() if notes else None, ts),
+            )
+        _trigger_cache_invalidation()
+        return True
+
+    def get_alert_reviews(self, alert_id: str) -> list[dict]:
+        """Fetch all historical review decisions and notes for an alert.
+
+        Args:
+            alert_id: Identifier of the alert.
+
+        Returns:
+            List of review dicts sorted chronologically.
+        """
+        conn = self.get_connection()
+        sql = """
+        SELECT review_id, alert_id, new_status, notes, reviewed_at
+        FROM alert_reviews
+        WHERE alert_id = ?
+        ORDER BY reviewed_at ASC
+        """
+        cur = conn.execute(sql, (alert_id,))
+        return [dict(row) for row in cur.fetchall()]
 
     # -------------------------------------------------------------------------
     # Combined Transaction Boundary
@@ -902,4 +1001,5 @@ class AttendanceRepository:
             if alert_params:
                 self._insert_alert_records(conn, alert_params)
 
+        _trigger_cache_invalidation()
         return session_records, alert_objs

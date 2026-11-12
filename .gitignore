@@ -27,6 +27,8 @@ env/
 *.sqlite3
 data/*.db
 data/*.db.bak
+data/backups/
+data/dumps/
 data/.attendsure_config.json
 
 # Caches & Test Artifacts
@@ -56,3 +58,5 @@ deliverables_backup/
 *.pdf
 *.pptx
 screen_*.png
+.neon
+node_modules/

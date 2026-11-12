@@ -17,7 +17,7 @@ import streamlit as st
 
 from attendsure.data.models import Alert
 from attendsure.ui.dev_mode import is_developer_mode
-from attendsure.ui.state import get_repository
+from attendsure.ui.state import get_cached_alerts, get_cached_sessions, get_repository
 
 
 def render_records() -> None:
@@ -27,8 +27,8 @@ def render_records() -> None:
 
     try:
         with get_repository() as repo:
-            all_sessions = repo.get_sessions(as_df=True)
-            alerts = repo.get_alerts()
+            all_sessions = get_cached_sessions(repo)
+            alerts = get_cached_alerts(repo)
     except Exception as exc:
         st.error(f"Unable to access the local attendance database: {exc}")
         return
@@ -49,9 +49,9 @@ def render_records() -> None:
     # -------------------------------------------------------------------------
     st.markdown(
         """
-        <div style="background: #FFFFFF; border: 1px solid #E5EAE1; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-            <div style="font-size: 0.92rem; font-weight: 700; color: #174A32; margin-bottom: 10px;">
-                🔍 Search & Filter Records
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+            <div style="font-size: 0.90rem; font-weight: 700; color: #0F172A; display: flex; align-items: center; gap: 8px;">
+                <span style="color: #0D9488;">🔍</span> Search & Filter Records
             </div>
         </div>
         """,
@@ -148,7 +148,7 @@ def render_records() -> None:
     k3.metric("Avg Attendance Rate", f"{avg_rate:.1f}%")
     k4.metric("Flagged for Review", f"{flagged_recs}")
 
-    st.markdown("<hr style='border: none; border-top: 1px solid #E5EAE1; margin: 16px 0;' />", unsafe_allow_html=True)
+    st.markdown("<hr style='border: none; border-top: 1px solid #E2E8F0; margin: 16px 0;' />", unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
     # 4. Display Table

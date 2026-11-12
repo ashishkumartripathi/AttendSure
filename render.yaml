@@ -1,0 +1,41 @@
+# =============================================================================
+# Render Infrastructure Blueprint for AttendSure Production Cloud Deployment
+# =============================================================================
+services:
+  - type: web
+    name: attendsure-rural-school
+    runtime: python
+    buildCommand: pip install --upgrade pip && pip install -e .
+    startCommand: streamlit run src/attendsure/ui/app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    plan: starter
+    region: oregon
+    healthCheckPath: /_stcore/health
+    disk:
+      name: attendsure-persistent-disk
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: ATTENDSURE_ENVIRONMENT
+        value: production
+      - key: ATTENDSURE_IS_PRODUCTION
+        value: "1"
+      - key: ATTENDSURE_AUTH_REQUIRED
+        value: "true"
+      - key: ATTENDSURE_DB_PATH
+        value: /app/data/production_rumv.db
+      - key: ATTENDSURE_SCHOOL_NAME
+        value: "Rajkiya Uchha Madhyamik Vidyalaya"
+      - key: ATTENDSURE_SCHOOL_ID
+        value: "RUMV-081204"
+      - key: ATTENDSURE_ADMIN_USERNAME
+        value: headmaster
+      - key: ATTENDSURE_ADMIN_PASSWORD
+        sync: false
+      - key: ATTENDSURE_TEACHER_USERNAME
+        value: teacher
+      - key: ATTENDSURE_TEACHER_PASSWORD
+        sync: false
+      # Optional: set DATABASE_URL if connecting to managed PostgreSQL (Neon / Supabase)
+      - key: ATTENDSURE_DATABASE_URL
+        sync: false
+

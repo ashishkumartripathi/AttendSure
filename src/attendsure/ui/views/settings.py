@@ -15,6 +15,9 @@ import streamlit as st
 from attendsure.data.storage import DEFAULT_DB_PATH
 from attendsure.ui.dev_mode import is_developer_mode, set_developer_mode
 from attendsure.ui.state import (
+    get_active_database_metadata,
+    get_cached_alerts,
+    get_cached_sessions,
     get_configured_db_path,
     get_repository,
     test_db_connection,
@@ -202,7 +205,8 @@ def _render_storage_diagnostics() -> None:
         path_type_badge = "<span class='badge badge-neutral'>Standard Local File</span>"
 
     # Test database connectivity
-    is_healthy, db_error = test_db_connection()
+    force_check = bool(st.session_state.get("btn_recheck_db"))
+    is_healthy, db_error = test_db_connection(force=force_check)
 
     if is_healthy:
         st.success("✅ **Database Connection Healthy:** System is ready and working normally.")
@@ -212,17 +216,22 @@ def _render_storage_diagnostics() -> None:
             f"Target file: '{configured_path}'. Please verify folder permissions and disk availability."
         )
 
-    badge_label = "Runtime Test Override" if is_override else ("Demonstration Database Override" if is_env_override else "Standard Local File")
+    db_meta = get_active_database_metadata()
     col_info, col_btn = st.columns([3, 1])
     with col_info:
-        st.markdown(f"**Active Database File:** `{configured_path}` — `{badge_label}`")
-        st.caption("SQLite database file stored securely on this computer.")
+        if db_meta.get("is_cloud"):
+            st.markdown(f"**Active Database:** `{db_meta['backend']}` — `Region: {db_meta['region']}`")
+            st.caption("Connected to managed Neon PostgreSQL database.")
+        else:
+            badge_label = "Runtime Test Override" if is_override else ("Demonstration Database Override" if is_env_override else "Standard Local File")
+            st.markdown(f"**Active Database File:** `{configured_path}` — `{badge_label}`")
+            st.caption("SQLite database file stored securely on this computer.")
 
     with col_btn:
         st.button(
             "🔄 Re-check Connection",
             key="btn_recheck_db",
-            help="Test the connection to the database file.",
+            help="Test the connection to the database.",
         )
 
 
@@ -238,22 +247,14 @@ def _render_repository_metrics() -> None:
 
     try:
         with get_repository() as repo:
-            sessions_df = repo.get_sessions(as_df=True)
-            alerts_df = repo.get_alerts(as_df=True)
+            sessions_df = get_cached_sessions(repo)
+            alerts = get_cached_alerts(repo)
 
         total_sessions = len(sessions_df)
-        total_alerts = len(alerts_df)
+        total_alerts = len(alerts)
 
-        pending_alerts = (
-            int((alerts_df["review_status"] == "PENDING_REVIEW").sum())
-            if not alerts_df.empty and "review_status" in alerts_df.columns
-            else 0
-        )
-        resolved_alerts = (
-            int((alerts_df["review_status"] == "RESOLVED").sum())
-            if not alerts_df.empty and "review_status" in alerts_df.columns
-            else 0
-        )
+        pending_alerts = len([a for a in alerts if a.review_status == "PENDING_REVIEW"])
+        resolved_alerts = len([a for a in alerts if a.review_status == "RESOLVED"])
 
         # Overview Metrics Strip
         k1, k2, k3, k4 = st.columns(4)
@@ -313,15 +314,40 @@ def _render_governance_and_privacy() -> None:
     st.subheader("Data Privacy & Local Storage")
     st.caption("How your school attendance records and student privacy are protected.")
 
-    # Local Offline-First Architecture
-    st.markdown(
-        """
-        > 🔒 **Offline-First & Local Storage Architecture:** The system operates exclusively as a local,
-        > self-contained tool. All data is stored in a local SQLite database on this computer's storage.
-        > No data is transmitted over the internet, no paid external AI or cloud APIs are queried, and no remote telemetry
-        > or analytics are embedded.
-        """
-    )
+    # Storage Architecture
+    db_meta = get_active_database_metadata()
+    if db_meta.get("is_cloud"):
+        st.markdown(
+            f"""
+            > ☁️ **Cloud Relational Architecture:** The system is connected to a managed **{db_meta['backend']}** ({db_meta['region']})
+            > database. Records are persisted across sessions and deployments with ACID transactions and managed cloud persistence.
+            > No biometric data or student facial templates are stored.
+            """
+        )
+    else:
+        st.markdown(
+            """
+            > 🔒 **Offline-First & Local Storage Architecture:** The system operates as an offline-first tool.
+            > All data is stored in a local SQLite database on this computer's storage.
+            > No external AI APIs are queried and no remote telemetry or analytics are embedded.
+            """
+        )
+
+    try:
+        active_db_path = get_configured_db_path()
+        if os.path.exists(active_db_path):
+            with open(active_db_path, "rb") as f:
+                db_bytes = f.read()
+            st.download_button(
+                label="💾 Download SQLite Database Backup (.db)",
+                data=db_bytes,
+                file_name="attendsure_backup.db",
+                mime="application/x-sqlite3",
+                key="btn_download_db_backup",
+                help="Download an exact copy of the active local SQLite database for offline backup or migration.",
+            )
+    except Exception:
+        pass
 
     g1, g2 = st.columns(2)
 
@@ -331,7 +357,9 @@ def _render_governance_and_privacy() -> None:
             """
             - **No PII Collected:** The system processes solely aggregated classroom counts (`expected_enrollment`, `present_count`, `absent_count`).
             - **Zero Biometric Data:** No student names, student IDs, biometric facial templates, or permanent photos are ever collected, processed, or stored.
-            - **Decision Support, Never Accusation:** Review signals highlight unusual patterns for teachers and headmasters to verify, never as proof of misconduct.
+            - **No Permanent Image Storage:** Camera frames may be temporarily received and inspected in memory during roll-call capture to assist educator headcount verification, but are never permanently saved to disk, database, logs, or exports.
+            - **No Facial Recognition or Templates:** No facial recognition, individual student identification, facial landmark tracking, or biometric feature templates are created or stored.
+            - **Decision Support, Never Accusation:** Review signals highlight unusual attendance patterns for teachers and headmasters to verify, never as proof of misconduct.
             """
         )
 
