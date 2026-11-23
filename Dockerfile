@@ -19,12 +19,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy package specifications
-COPY pyproject.toml requirements.txt* ./
+# Copy dependency specifications
+COPY pyproject.toml requirements.txt README.md ./
 
-# Install dependencies
+# Copy application source before package installation
+COPY src/ ./src/
+
+# Install all application dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
-    pip install --no-cache-dir -e .
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy source code and documentation
 COPY src/ /app/src/
