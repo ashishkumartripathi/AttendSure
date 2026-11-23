@@ -22,12 +22,14 @@ from attendsure.ui.state import (
     get_repository,
     test_db_connection,
 )
+from attendsure.ui.theme import render_workspace_intro
 
 
 def render_settings() -> None:
     """Render the primary Settings administrative screen."""
     st.header("Settings")
     st.caption("Manage school details, class strengths, preferences, and local data storage.")
+    st.markdown(render_workspace_intro("SCHOOL OPERATIONS", "Manage the school profile, rosters, preferences, and data health from one place.", "Admin workspace"), unsafe_allow_html=True)
 
     tab_school, tab_health = st.tabs(
         [

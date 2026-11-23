@@ -32,12 +32,14 @@ from attendsure.ui.state import (
     invalidate_data_cache,
 )
 from attendsure.ui.views.laboratory import render_laboratory
+from attendsure.ui.theme import render_workspace_intro
 
 
 def render_reports() -> None:
     """Render the primary teacher-ready Reports screen."""
     st.header("Reports")
     st.caption("Print and download attendance records, view class summaries, and track attendance trends.")
+    st.markdown(render_workspace_intro("INSIGHTS & EXPORTS", "Turn attendance information into clear summaries, charts, and ready-to-share files.", "Data workspace"), unsafe_allow_html=True)
 
     dev_mode = is_developer_mode()
     tab_titles = [

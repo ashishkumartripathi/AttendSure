@@ -1,13 +1,7 @@
-"""Centralized Design Tokens and Reusable Component Helpers for AttendSure UI.
+"""Centralized design tokens and reusable component helpers for AttendSure.
 
-Adheres strictly to the Modern SaaS design direction:
-- Primary surfaces: Deep navy (#0F172A, #1E293B)
-- Primary actions & positive states: Teal (#0D9488, #14B8A6, #0F766E, #CCFBF1, #115E59)
-- Backgrounds: Neutral slate (#F8FAFC, #F1F5F9, #FFFFFF)
-- Attention states: Amber (#F59E0B, #FEF3C7, #92400E)
-- Critical states: Red (#EF4444, #FEE2E2, #991B1B)
-- Typography: Slate (#0F172A primary, #475569 secondary, #64748B muted)
-- Elevation: Clean 8px-12px radii, subtle shadows
+The dashboard uses a calm indigo and periwinkle palette with a coral attention
+accent, inspired by the supplied visual reference while preserving accessibility.
 """
 
 from typing import Optional
@@ -16,48 +10,48 @@ from typing import Optional
 # Design Tokens
 TOKENS = {
     # Surfaces & Backgrounds
-    "bg_main": "#F8FAFC",
-    "bg_canvas": "#F8FAFC",
-    "bg_sidebar": "#F1F5F9",
-    "surface_light": "#F1F5F9",
+    "bg_main": "#F6F7FF",
+    "bg_canvas": "#F6F7FF",
+    "bg_sidebar": "#FFFFFF",
+    "surface_light": "#EEF1FF",
     "card_bg": "#FFFFFF",
-    "navy_primary": "#0F172A",
-    "navy_card": "#1E293B",
-    "dark_forest": "#0F172A",  # Backward compatibility alias
+    "navy_primary": "#25234A",
+    "navy_card": "#4B49AC",
+    "dark_forest": "#25234A",  # Backward compatibility alias
 
     # Primary Actions & Accents (Teal)
-    "primary": "#0D9488",
-    "teal_primary": "#0D9488",
-    "teal_hover": "#0F766E",
-    "teal_light": "#CCFBF1",
-    "teal_text": "#115E59",
-    "secondary": "#64748B",
-    "pastel": "#CCFBF1",
+    "primary": "#4B49AC",
+    "teal_primary": "#4B49AC",  # Legacy key retained for view compatibility.
+    "teal_hover": "#393787",
+    "teal_light": "#E8E9FF",
+    "teal_text": "#393787",
+    "secondary": "#62617C",
+    "pastel": "#E8E9FF",
 
     # Typography
-    "text_primary": "#0F172A",
-    "text_secondary": "#475569",
-    "text_muted": "#64748B",
+    "text_primary": "#25234A",
+    "text_secondary": "#62617C",
+    "text_muted": "#81809A",
 
     # Borders & Dividers
-    "border": "#E2E8F0",
-    "border_subtle": "#E2E8F0",
-    "border_strong": "#CBD5E1",
+    "border": "#E2E5F5",
+    "border_subtle": "#EEF0FA",
+    "border_strong": "#D7D8EC",
 
     # Status: Warning / Attention (Amber)
-    "warning_bg": "#FEF3C7",
-    "warning_text": "#92400E",
-    "warning_border": "#FDE68A",
+    "warning_bg": "#FFF1F2",
+    "warning_text": "#B04452",
+    "warning_border": "#F6C4CB",
 
     # Status: Critical / Alert (Red)
-    "error_bg": "#FEE2E2",
-    "error_text": "#991B1B",
-    "error_border": "#FECACA",
+    "error_bg": "#FFF0F1",
+    "error_text": "#B04452",
+    "error_border": "#F7C3C9",
 
     # Status: Success / Normal (Teal)
-    "success_bg": "#CCFBF1",
-    "success_text": "#115E59",
-    "success_border": "#99F6E4",
+    "success_bg": "#E8E9FF",
+    "success_text": "#4B49AC",
+    "success_border": "#C9C9F4",
 
     # Layout & Elevation
     "radius_card": "10px",
@@ -74,15 +68,28 @@ def render_page_header(title: str, caption: str, badge: Optional[str] = None) ->
     return f"""
     <div class="saas-page-header" style="margin-bottom: 1.25rem;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-            <h1 style="margin: 0; font-size: 1.65rem; font-weight: 700; color: #0F172A; letter-spacing: -0.025em;">
+            <h1 style="margin: 0; font-size: 1.65rem; font-weight: 700; color: #25234A; letter-spacing: -0.025em;">
                 {title}
             </h1>
             {badge_html}
         </div>
-        <p style="margin: 0; font-size: 0.88rem; color: #475569; font-weight: 400; line-height: 1.45;">
+        <p style="margin: 0; font-size: 0.88rem; color: #62617C; font-weight: 400; line-height: 1.45;">
             {caption}
         </p>
     </div>
+    """
+
+
+def render_workspace_intro(eyebrow: str, summary: str, meta: str) -> str:
+    """Render a compact, modular context bar for an operational workspace."""
+    return f"""
+    <section class="workspace-intro">
+        <div>
+            <p class="workspace-eyebrow">{eyebrow}</p>
+            <p class="workspace-summary">{summary}</p>
+        </div>
+        <span class="workspace-meta">{meta}</span>
+    </section>
     """
 
 

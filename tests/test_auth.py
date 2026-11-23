@@ -97,17 +97,17 @@ def test_user_registry_environment_variable_overrides(monkeypatch):
 
 def test_authenticate_credentials():
     """Verify authenticate returns valid UserAccount on correct credentials and rejects bad ones."""
-    ok_admin, user_admin, _ = authenticate("headmaster", "Admin@SIH2025!")
+    ok_admin, user_admin, _ = authenticate("headmaster", "Head@123")
     assert ok_admin is True
     assert user_admin is not None
     assert user_admin.role == ROLE_HEADMASTER
 
-    ok_teacher, user_teacher, _ = authenticate("teacher", "Teacher@SIH2025!")
+    ok_teacher, user_teacher, _ = authenticate("teacher", "teacher@123")
     assert ok_teacher is True
     assert user_teacher is not None
     assert user_teacher.role == ROLE_TEACHER
 
-    ok_bad_user, _, msg1 = authenticate("unknown_user", "Admin@SIH2025!")
+    ok_bad_user, _, msg1 = authenticate("unknown_user", "Head@123")
     assert ok_bad_user is False
     assert "Invalid" in msg1
 

@@ -8,6 +8,7 @@ Refined with the Modern SaaS design language (Deep Navy, Teal, Neutral Slate, Am
 """
 
 from datetime import datetime
+from html import escape
 import textwrap
 from typing import Optional
 
@@ -43,9 +44,9 @@ def render_overview() -> None:
                 <span>Today</span>
             </div>
             <div class="saas-header-pill">
-                <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background-color: #0D9488;"></span>
-                <span style="font-weight: 600; color: #0F172A;">Govt. Primary School</span>
-                <span style="color: #64748B; font-size: 0.74rem;">Teacher Edition</span>
+                <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background-color: #7978E9;"></span>
+                <span style="font-weight: 600; color: #25234A;">Govt. Primary School</span>
+                <span style="color: #81809A; font-size: 0.74rem;">Teacher Edition</span>
             </div>
         </div>
         """
@@ -308,32 +309,36 @@ def render_overview() -> None:
         for a in alerts:
             alerts_per_session[a.session_id] = alerts_per_session.get(a.session_id, 0) + 1
 
-        table_rows_html = []
+        activity_tiles_html = []
         for _, r in recent.iterrows():
             s_date = str(r["session_date"]).replace("-", "/")
-            c_id = r["class_id"]
+            c_id = escape(str(r["class_id"]))
             enr = int(r["expected_enrollment"])
             pres = int(r["present_count"])
             abse = int(r["absent_count"])
             rate_val = float(r["attendance_rate_val"])
-            rate_badge_class = "rate-badge-drop" if rate_val < 75.0 else "rate-badge-normal"
+            rate_badge_class = "session-rate-review" if rate_val < 75.0 else "session-rate-healthy"
             sig_count = alerts_per_session.get(str(r["session_id"]), 0)
-            alerts_cell = f'<span class="badge badge-review">⚠️ {sig_count}</span>' if sig_count > 0 else '<span style="color: #64748B;">0</span>'
+            review_status = f"<span class='session-signal'>⚠ {sig_count} review</span>" if sig_count else "<span class='session-clear'>✓ Clear</span>"
 
-            row_html = (
-                f'<tr>'
-                f'<td><span style="margin-right: 6px;">📅</span>{s_date}</td>'
-                f'<td><span class="cohort-pill">{c_id}</span></td>'
-                f'<td>{enr}</td>'
-                f'<td>{pres}</td>'
-                f'<td>{abse}</td>'
-                f'<td><span class="{rate_badge_class}">{rate_val:.1f}%</span></td>'
-                f'<td>{alerts_cell}</td>'
-                f'</tr>'
+            tile_html = (
+                '<article class="session-tile">'
+                '<div class="session-tile-top">'
+                f'<span class="session-date">{s_date}</span>'
+                f'<span class="{rate_badge_class}">{rate_val:.1f}%</span>'
+                '</div>'
+                f'<div class="session-class">{c_id}</div>'
+                '<div class="session-counts">'
+                f'<span><b>{pres}</b> present</span>'
+                f'<span><b>{abse}</b> absent</span>'
+                f'<span><b>{enr}</b> enrolled</span>'
+                '</div>'
+                f'<div class="session-review-state">{review_status}</div>'
+                '</article>'
             )
-            table_rows_html.append(row_html)
+            activity_tiles_html.append(tile_html)
 
-        tbody_content = "".join(table_rows_html)
+        activity_content = "".join(activity_tiles_html)
 
         table_card_html = (
             '<div class="attendsure-card-table">'
@@ -346,21 +351,8 @@ def render_overview() -> None:
             '</div>'
             '</div>'
             '</div>'
-            '<div class="reference-table-wrap">'
-            '<table class="reference-table">'
-            '<thead>'
-            '<tr>'
-            '<th>Date</th>'
-            '<th>Class</th>'
-            '<th>Total Students</th>'
-            '<th>Present</th>'
-            '<th>Absent</th>'
-            '<th>Attendance</th>'
-            '<th>Alerts</th>'
-            '</tr>'
-            '</thead>'
-            f'<tbody>{tbody_content}</tbody>'
-            '</table>'
+            '<div class="session-grid">'
+            f'{activity_content}'
             '</div>'
             '</div>'
         )

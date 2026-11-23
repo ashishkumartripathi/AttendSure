@@ -63,7 +63,7 @@ def main() -> None:
                 <div style="
                     width: 36px;
                     height: 36px;
-                    background-color: #0F172A;
+                    background-color: #4B49AC;
                     border-radius: 8px;
                     display: flex;
                     align-items: center;
@@ -75,18 +75,18 @@ def main() -> None:
                     🎓
                 </div>
                 <div>
-                    <div style="font-size: 0.94rem; font-weight: 700; color: #0F172A; letter-spacing: -0.02em; line-height: 1.2;">
+                    <div style="font-size: 0.94rem; font-weight: 700; color: #25234A; letter-spacing: -0.02em; line-height: 1.2;">
                         Rural School Attendance
                     </div>
-                    <div style="font-size: 0.74rem; font-weight: 600; color: #0D9488; letter-spacing: -0.01em;">
+                    <div style="font-size: 0.74rem; font-weight: 600; color: #4B49AC; letter-spacing: -0.01em;">
                         Integrity & Intervention Decision System
                     </div>
                 </div>
             </div>
-            <p style="margin: 4px 0 12px 0; font-size: 0.70rem; color: #64748B; font-weight: 500; line-height: 1.35;">
+            <p style="margin: 4px 0 12px 0; font-size: 0.70rem; color: #81809A; font-weight: 500; line-height: 1.35;">
                 SIH25012 • Automated Attendance System for Rural Schools
             </p>
-            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 0 0 14px 0;" />
+            <hr style="border: none; border-top: 1px solid #E2E5F5; margin: 0 0 14px 0;" />
         </div>
         """,
         unsafe_allow_html=True,
@@ -144,12 +144,12 @@ def main() -> None:
 
     st.sidebar.markdown(
         f"""
-        <div style="margin-top: 2rem; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);">
+        <div style="margin-top: 2rem; padding: 12px 14px; background: #F8F8FF; border: 1px solid #E2E5F5; border-radius: 12px; box-shadow: 0 6px 18px rgba(75, 73, 172, 0.07);">
             <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
-                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #0D9488;"></span>
-                <span style="font-size: 0.80rem; font-weight: 700; color: #0F172A;">{db_meta['status']}</span>
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #7978E9;"></span>
+                <span style="font-size: 0.80rem; font-weight: 700; color: #25234A;">{db_meta['status']}</span>
             </div>
-            <div style="font-size: 0.74rem; color: #475569; line-height: 1.45;">
+            <div style="font-size: 0.74rem; color: #62617C; line-height: 1.45;">
                 {storage_line}
             </div>
         </div>

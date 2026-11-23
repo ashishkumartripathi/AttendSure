@@ -27,13 +27,14 @@ from attendsure.services.attendance_service import (
 )
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.state import get_cached_sessions, get_repository
-from attendsure.ui.theme import render_page_header
+from attendsure.ui.theme import render_page_header, render_workspace_intro
 
 
 def render_register() -> None:
     """Render the primary Attendance screen."""
     st.header("Mark Attendance")
     st.caption("Daily classroom roll call, camera headcount verification, and batch CSV ingestion.")
+    st.markdown(render_workspace_intro("DAILY WORKFLOW", "Record attendance, confirm the classroom count, and keep the day moving.", "3-step roll call"), unsafe_allow_html=True)
 
     tab_entry, tab_history, tab_csv = st.tabs(
         [

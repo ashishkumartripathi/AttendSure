@@ -35,12 +35,14 @@ from attendsure.services.attendance_service import (
 from attendsure.ui.state import get_cached_alerts, get_repository, invalidate_data_cache
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.views.alert_card import render_teacher_alert_card
+from attendsure.ui.theme import render_workspace_intro
 
 
 def render_intelligence() -> None:
     """Render the primary Needs Attention screen."""
     st.header("Needs Attention")
     st.caption("Review attendance records requiring inspection with explainable rules and AI decision support.")
+    st.markdown(render_workspace_intro("REVIEW QUEUE", "Work through attendance signals with clear evidence and human review controls.", "Advisory signals only"), unsafe_allow_html=True)
 
     try:
         with get_repository() as repo:

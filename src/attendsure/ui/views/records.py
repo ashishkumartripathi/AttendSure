@@ -18,12 +18,14 @@ import streamlit as st
 from attendsure.data.models import Alert
 from attendsure.ui.dev_mode import is_developer_mode
 from attendsure.ui.state import get_cached_alerts, get_cached_sessions, get_repository
+from attendsure.ui.theme import render_workspace_intro
 
 
 def render_records() -> None:
     """Render the teacher-friendly Attendance Records screen."""
     st.header("Attendance Records")
     st.caption("Search, filter, and inspect past attendance records across all classes.")
+    st.markdown(render_workspace_intro("RECORD LIBRARY", "Browse the attendance history as a focused operational archive.", "Search & export ready"), unsafe_allow_html=True)
 
     try:
         with get_repository() as repo:

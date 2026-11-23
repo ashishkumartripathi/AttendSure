@@ -114,13 +114,13 @@ class UserAccount:
         }
 
 
-# Default demonstration hashes (Password: 'Admin@SIH2025!' and 'Teacher@SIH2025!')
+# Default demonstration hashes for the documented Headmaster and Teacher demo accounts.
 # These can be customized or overridden via environment variables in production.
 _DEFAULT_ADMIN_HASH = (
-    "pbkdf2:sha256:100000:ef30234989346242b8fbf4112a1d2e27:d64755cda0648975a47baba9bf74087bcfc372c5bf19796951c6a3cb0f15ec00"
+    "pbkdf2:sha256:100000:37b64087f6b6511e3fd6407c7635fe40:a7b77d76c5d397f8c15d64f035d5348e59148cf0f0a2f3a4cf8d0a25f8cc71ec"
 )
 _DEFAULT_TEACHER_HASH = (
-    "pbkdf2:sha256:100000:e78d4b785ffbbddb0025cf4442ac22de:4b0d44423135471f0d67bf17ffae8c03a51c6b56d2ff7fb0080ca053358f5e0b"
+    "pbkdf2:sha256:100000:794036c03b30ef0291d94dbede5ff8c9:c863fafd5e97336104838ea3b974385019dcf1e2eab485c33e1658aad0d6e646"
 )
 
 
@@ -314,10 +314,10 @@ def render_login_screen() -> None:
             f"""
             <div style="
                 background: #FFFFFF;
-                border: 1px solid #E2E8F0;
+                border: 1px solid #E2E5F5;
                 border-radius: 12px;
                 padding: 32px 36px 28px 36px;
-                box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.08);
+                box-shadow: 0 10px 28px -4px rgba(75, 73, 172, 0.16);
                 margin-top: 1.5rem;
                 margin-bottom: 1.5rem;
             ">
@@ -325,43 +325,43 @@ def render_login_screen() -> None:
                     <div style="
                         width: 44px;
                         height: 44px;
-                        background-color: #0F172A;
+                        background-color: #4B49AC;
                         border-radius: 10px;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         font-size: 1.5rem;
-                        box-shadow: 0 2px 4px rgba(15, 23, 42, 0.15);
+                        box-shadow: 0 6px 12px rgba(75, 73, 172, 0.22);
                     ">
                         🎓
                     </div>
                     <div>
-                        <div style="font-size: 1.15rem; font-weight: 700; color: #0F172A; letter-spacing: -0.02em; line-height: 1.2;">
+                        <div style="font-size: 1.15rem; font-weight: 700; color: #25234A; letter-spacing: -0.02em; line-height: 1.2;">
                             Rural School Attendance
                         </div>
-                        <div style="font-size: 0.82rem; font-weight: 600; color: #0D9488; letter-spacing: -0.01em;">
+                        <div style="font-size: 0.82rem; font-weight: 600; color: #4B49AC; letter-spacing: -0.01em;">
                             Integrity and Intervention Decision System
                         </div>
                     </div>
                 </div>
                 <div style="
                     display: inline-block;
-                    background: #F1F5F9;
-                    border: 1px solid #CBD5E1;
+                    background: #EEF1FF;
+                    border: 1px solid #DDE0FB;
                     border-radius: 6px;
                     padding: 3px 10px;
                     font-size: 0.76rem;
                     font-weight: 600;
-                    color: #475569;
+                    color: #62617C;
                     margin-bottom: 16px;
                 ">
                     SIH25012 • Authorized Institutional Access Only
                 </div>
-                <p style="font-size: 0.88rem; color: #475569; margin-bottom: 20px; line-height: 1.5;">
+                <p style="font-size: 0.88rem; color: #62617C; margin-bottom: 20px; line-height: 1.5;">
                     Sign in to access school attendance registers, integrity signals, and decision-support records for
                     <strong>{school_name}</strong> (Code: <code>{school_id}</code>).
                 </p>
-                <hr style="border: none; border-top: 1px solid #E2E8F0; margin-bottom: 20px;" />
+                <hr style="border: none; border-top: 1px solid #E2E5F5; margin-bottom: 20px;" />
             </div>
             """,
             unsafe_allow_html=True,
@@ -369,7 +369,7 @@ def render_login_screen() -> None:
 
         with st.form("attendsure_login_form"):
             st.markdown(
-                '<div style="font-size: 0.88rem; font-weight: 600; color: #0F172A; margin-bottom: 4px;">Username</div>',
+                '<div style="font-size: 0.88rem; font-weight: 600; color: #25234A; margin-bottom: 4px;">Username</div>',
                 unsafe_allow_html=True,
             )
             username_input = st.text_input(
@@ -380,7 +380,7 @@ def render_login_screen() -> None:
             )
 
             st.markdown(
-                '<div style="font-size: 0.88rem; font-weight: 600; color: #0F172A; margin-top: 12px; margin-bottom: 4px;">Password</div>',
+                '<div style="font-size: 0.88rem; font-weight: 600; color: #25234A; margin-top: 12px; margin-bottom: 4px;">Password</div>',
                 unsafe_allow_html=True,
             )
             password_input = st.text_input(

@@ -32,6 +32,7 @@ from attendsure.evaluation.metrics import (
     evaluate_webcam_estimation,
 )
 from attendsure.ui.views.alert_card import render_teacher_alert_card
+from attendsure.ui.theme import render_workspace_intro
 
 
 # -----------------------------------------------------------------------------
@@ -87,6 +88,7 @@ def render_laboratory() -> None:
     """Render the primary Test & Learn view."""
     st.header("Test & Learn")
     st.caption("Try sample attendance records and see how the system finds unusual patterns.")
+    st.markdown(render_workspace_intro("SAFE SIMULATION", "Explore synthetic scenarios and inspect the transparent rules behind every signal.", "No live records changed"), unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
     # Compact Plain English Disclaimer Notice
